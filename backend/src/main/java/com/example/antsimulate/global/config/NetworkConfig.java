@@ -11,19 +11,15 @@ import java.util.concurrent.Executors;
 
 @Configuration
 public class NetworkConfig {
-    @Bean
-    public RestClient.Builder restClientBuilder() {
-        return RestClient.builder();
-    }
 
     @Bean
-    public RestClient restClient(RestClient.Builder builder) {
+    public RestClient restClient() {
         HttpClient httpClient = HttpClient.newBuilder()
                 .executor(Executors.newVirtualThreadPerTaskExecutor())
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
 
-        return builder
+        return RestClient.builder()
                 .baseUrl("http://localhost:8000")
                 .requestFactory(new JdkClientHttpRequestFactory(httpClient))
                 .build();
