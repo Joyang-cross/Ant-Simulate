@@ -1,4 +1,4 @@
-package com.example.antsimulate.kiwoom.runner;
+/*package com.example.antsimulate.kiwoom.runner;
 
 import com.example.antsimulate.kiwoom.client.KiwoomWsClient;
 import lombok.RequiredArgsConstructor;
@@ -18,4 +18,4 @@ public class KiwoomWsStarter implements ApplicationRunner {
         log.info("[BOOT] start Kiwoom WebSocket");
         kiwoomWsClient.connect();
     }
-}
+}*/

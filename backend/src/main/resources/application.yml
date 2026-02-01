@@ -31,7 +31,14 @@ logging:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
     root: info
+    com.example.antsimulate.kiwoom: debug
 
 twelvedata:
   base-url: https://api.twelvedata.com
   api-key: ${TWELVE_DATA_API_KEY}
+
+kiwoom:
+  base-url: https://api.kiwoom.com
+  ws-url: wss://api.kiwoom.com:10000/api/dostk/websocket
+  appkey: ${KIWOOM_APPKEY}
+  secretkey: ${KIWOOM_SECRETKEY}

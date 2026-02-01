@@ -2,6 +2,7 @@ package com.example.antsimulate.kiwoom.client;
 
 import com.example.antsimulate.kiwoom.dto.KiwoomQuoteDto;
 import com.example.antsimulate.kiwoom.message.KiwoomWsMessageParser;
+import com.example.antsimulate.kiwoom.service.KiwoomTokenService;
 import com.example.antsimulate.kiwoom.service.QuoteBroadcastService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,9 @@ public class KiwoomWsClient implements WebSocket.Listener{
     // java 표준 WebSocket 클라이언트 생성용
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
+    // 키움 access token 관리 서비스
+    private final KiwoomTokenService kiwoomTokenService;
+
     // 현재 연결된 WebSocket 인스턴스
     private WebSocket webSocket;
 
@@ -32,6 +36,9 @@ public class KiwoomWsClient implements WebSocket.Listener{
 
     // 변환된 DTO를 STOMP로 브로드캐스트
     private final QuoteBroadcastService quoteBroadcastService;
+
+    // 토큰 인증 성공 여부
+    private boolean authenticated = false;
 
     /**
      *  키움 WebSocket 서버에 연결을 시작하는 메서드
@@ -66,6 +73,13 @@ public class KiwoomWsClient implements WebSocket.Listener{
      */
     @Override
     public void onOpen(WebSocket webSocket){
+        log.info("[KIWOOM-WS] on open");
+
+        this.webSocket = webSocket;
+
+        String token = kiwoomTokenService.getAccessToken();
+        sendTokenMessage(token);
+
         webSocket.request(1);
     }
 
@@ -78,9 +92,22 @@ public class KiwoomWsClient implements WebSocket.Listener{
         log.debug("[KIWOOM-WS] recv={}", data);
         String raw = data.toString();
 
-        KiwoomQuoteDto dto = kiwoomWsMessageParser.parse(raw);
-        if(dto != null){
-            quoteBroadcastService.broadcast(dto);
+        if(isPing(raw)){
+            echoPong(webSocket, raw);
+            webSocket.request(1);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        if(!authenticated && isLoginSuccess(raw)){
+            authenticated = true;
+            log.info("[KIWOOM-WS] token authenticated");
+            webSocket.request(1);
+            return CompletableFuture.completedFuture(null);
+        } else if (authenticated){
+            KiwoomQuoteDto dto = kiwoomWsMessageParser.parse(raw);
+            if(dto != null){
+                quoteBroadcastService.broadcast(dto);
+            }
         }
 
         webSocket.request(1);
@@ -104,5 +131,35 @@ public class KiwoomWsClient implements WebSocket.Listener{
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason){
         log.warn("[KIWOOM-WS] closed {} {}", statusCode, reason);
         return CompletableFuture.completedFuture(null);
+    }
+
+    private void sendTokenMessage(String token){
+        String payload = """
+                {
+                    "trnm" : "LOGIN",
+                    "token" : "%s"
+                }
+                """.formatted(token);
+        webSocket.sendText(payload, true);
+        log.info("[KIWOOM-WS] token message sent");
+    }
+
+    private boolean isLoginSuccess(String message){
+        return message.contains("\"trnm\":\"LOGIN\"") && message.contains("\"return_code\":0");
+    }
+
+    /**
+     * 연결 시 메시지 PING 확인
+     */
+    private boolean isPing(String message){
+        return message.contains("\"trnm\":\"PING\"");
+    }
+
+    /**
+     * 연결유지 메시지 전송
+     */
+    private void echoPong(WebSocket webSocket, String pingMessage){
+        webSocket.sendText(pingMessage, true);
+        log.debug("[KIWOOM-WS] ping echoed");
     }
 }
