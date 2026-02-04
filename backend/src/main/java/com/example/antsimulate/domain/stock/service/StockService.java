@@ -23,6 +23,13 @@ public class StockService {
     private final UserRepository userRepository;
 
     /**
+     *  차트 리스트 조회
+     **/
+    public List<StockItems> getStockItems(){
+        return stockItemsRepository.findAll();
+    }
+
+    /**
      *  종목별 차트 조회
      **/
     public List<GetStockPriceDailyResponse> getStockPriceDaily(Long stockItemId){

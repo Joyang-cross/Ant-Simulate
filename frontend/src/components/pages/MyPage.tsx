@@ -1,11 +1,79 @@
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Shield, DollarSign, RefreshCw, Award, TrendingUp, Target, Calendar, Settings, Bell, CreditCard, History } from "lucide-react";
+import { User, Shield, DollarSign, RefreshCw, Award, TrendingUp, Target, Calendar, Settings, Bell, CreditCard, History, Loader2, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { accountApi } from "@/services/api";
+import type { Account } from "@/types";
+import { useTheme } from "@/hooks";
 
-export function MyPage() {
+interface MyPageProps {
+  userId?: number;
+  nickname?: string;
+}
+
+export function MyPage({ userId, nickname }: MyPageProps) {
+  const { isDark } = useTheme();
+  const [account, setAccount] = useState<Account | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [newStartAsset, setNewStartAsset] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+
+  // 계좌 정보 로드
+  useEffect(() => {
+    async function loadAccount() {
+      if (!userId) return;
+      setIsLoading(true);
+      try {
+        const accountData = await accountApi.getAccount(userId);
+        setAccount(accountData);
+        setNewStartAsset(String(accountData.startAsset));
+      } catch (err) {
+        console.error("Failed to load account:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadAccount();
+  }, [userId]);
+
+  // 시드머니 변경
+  const handleUpdateStartAsset = async () => {
+    if (!account || !newStartAsset) return;
+    setIsUpdating(true);
+    try {
+      await accountApi.updateStartAsset(account.accountId, parseInt(newStartAsset));
+      setAccount(prev => prev ? { ...prev, startAsset: parseInt(newStartAsset), totalAsset: parseInt(newStartAsset) } : null);
+      setUpdateSuccess(true);
+      setTimeout(() => setUpdateSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to update start asset:", err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // 계좌 리셋
+  const handleResetAccount = async () => {
+    if (!account) return;
+    if (!confirm("정말 계좌를 초기화하시겠습니까? 모든 거래 내역이 삭제됩니다.")) return;
+    
+    setIsUpdating(true);
+    try {
+      await accountApi.resetAsset(account.accountId);
+      setAccount(prev => prev ? { ...prev, startAsset: 10000000, totalAsset: 10000000 } : null);
+      setNewStartAsset("10000000");
+    } catch (err) {
+      console.error("Failed to reset account:", err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const profitRate = account ? ((account.totalAsset - account.startAsset) / account.startAsset * 100) : 0;
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-4 mb-8">
@@ -18,8 +86,8 @@ export function MyPage() {
           </div>
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-white">홍길동</h2>
-          <p className="text-slate-400">user@example.com</p>
+          <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{nickname || '사용자'}</h2>
+          <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>ID: {userId}</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">프리미엄</span>
             <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">레벨 12</span>
@@ -126,51 +194,84 @@ export function MyPage() {
           <Card className="glass-card rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-5">
               <DollarSign className="w-5 h-5 text-emerald-400" />
-              <h3 className="text-white font-semibold">가상 계좌 관리</h3>
+              <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>가상 계좌 관리</h3>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 p-5 rounded-xl">
-                <div className="text-slate-400 text-sm mb-1">현재 시드 머니</div>
-                <div className="text-white text-2xl font-bold">10,000,000원</div>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
               </div>
-              <div className="bg-gradient-to-br from-emerald-500/20 to-green-500/20 border border-emerald-500/30 p-5 rounded-xl">
-                <div className="text-slate-400 text-sm mb-1">총 자산</div>
-                <div className="text-emerald-400 text-2xl font-bold">12,450,000원</div>
-                <div className="text-emerald-400 text-sm mt-1">+24.5%</div>
-              </div>
-            </div>
+            ) : account ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 p-5 rounded-xl">
+                    <div className={`text-sm mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>현재 시드 머니</div>
+                    <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      {account.startAsset.toLocaleString()}원
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-emerald-500/20 to-green-500/20 border border-emerald-500/30 p-5 rounded-xl">
+                    <div className={`text-sm mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>총 자산</div>
+                    <div className={`text-2xl font-bold ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {account.totalAsset.toLocaleString()}원
+                    </div>
+                    <div className={`text-sm mt-1 ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-slate-300 text-sm">초기 시드 머니 설정</Label>
-                <Input 
-                  type="number"
-                  defaultValue="10000000"
-                  placeholder="초기 투자 금액"
-                  className="bg-white/5 border-white/10 text-white rounded-xl h-11"
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl h-11">
-                  시드 머니 변경
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 rounded-xl h-11"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  계좌 초기화
-                </Button>
-              </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>초기 시드 머니 설정</Label>
+                    <Input 
+                      type="number"
+                      value={newStartAsset}
+                      onChange={(e) => setNewStartAsset(e.target.value)}
+                      placeholder="초기 투자 금액"
+                      className={`rounded-xl h-11 ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-100 border-slate-200 text-slate-900'}`}
+                    />
+                    <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
+                      최소 100만원, 최대 10억원까지 설정 가능합니다.
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Button 
+                      onClick={handleUpdateStartAsset}
+                      disabled={isUpdating}
+                      className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl h-11"
+                    >
+                      {isUpdating ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : updateSuccess ? (
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                      ) : null}
+                      {updateSuccess ? '변경 완료!' : '시드 머니 변경'}
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={handleResetAccount}
+                      disabled={isUpdating}
+                      className="bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 rounded-xl h-11"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
+                      계좌 초기화 (1,000만원)
+                    </Button>
+                  </div>
 
-              <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
-                <p className="text-amber-300 text-sm">
-                  ⚠️ 계좌 초기화 시 모든 거래 내역과 보유 종목이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                </p>
+                  <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
+                    <p className="text-amber-300 text-sm">
+                      ⚠️ 계좌 초기화 시 시드머니가 1,000만원으로 리셋됩니다. 포트폴리오와 거래 내역은 유지됩니다.
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className={`text-center py-8 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                계좌 정보를 불러올 수 없습니다.
               </div>
-            </div>
+            )}
           </Card>
 
           {/* Transaction History */}

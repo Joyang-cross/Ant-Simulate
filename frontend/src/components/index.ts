@@ -15,3 +15,4 @@ export * from './pages/Portfolio';
 export * from './pages/BacktestingLab';
 export * from './pages/MyPage';
 export * from './pages/MarketNews';
+export * from './pages/StockDetailScreen';

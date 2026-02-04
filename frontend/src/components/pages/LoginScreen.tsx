@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { TrendingUp, Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
+import { TrendingUp, Mail, Lock, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks";
+import { authApi } from "@/services/api";
 
 interface LoginScreenProps {
-  onLogin: (nickname: string) => void;
-  onSignupClick: () => void;
+  onLogin: (userId: number, nickname: string) => void;
+  onSignupClick?: () => void;
 }
 
 export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
@@ -25,39 +26,17 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
   }, [isDark]);
 
   const handleLogin = async () => {
-    setError(null);
-
     if (!email || !password) {
       setError("이메일과 비밀번호를 입력해주세요.");
       return;
     }
 
     setIsLoading(true);
+    setError(null);
 
     try {
-      const response = await fetch("http://localhost:8080/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = "로그인에 실패했습니다.";
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.message || errorJson.error || errorText;
-        } catch {
-          errorMessage = errorText || "로그인에 실패했습니다.";
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      console.log("로그인 응답:", data);
-      onLogin(data.nickname);
+      const response = await authApi.login({ email, password });
+      onLogin(response.userId, response.nickname);
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
     } finally {
@@ -103,12 +82,6 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
 
         {/* Login Card */}
         <Card className={`rounded-2xl p-8 animate-slide-up border ${isDark ? 'glass-card' : 'bg-white/80 backdrop-blur-xl border-slate-200/60 shadow-xl shadow-slate-200/50'}`}>
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm">
-              {error}
-            </div>
-          )}
-
           <div className="space-y-5 mb-6">
             <div className="space-y-2">
               <Label htmlFor="email" className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>이메일</Label>
@@ -141,12 +114,19 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   className={`pl-10 rounded-xl h-12 transition-all ${isDark 
                     ? 'bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500/50 focus:ring-indigo-500/20' 
                     : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/20 focus:bg-white'}`}
                 />
               </div>
             </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+                {error}
+              </div>
+            )}
           </div>
 
           <Button 
@@ -154,8 +134,14 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
             disabled={isLoading}
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl h-12 font-semibold transition-all duration-300 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 group disabled:opacity-50"
           >
-            {isLoading ? "로그인 중..." : "로그인"}
-            {!isLoading && <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />}
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                로그인
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
           </Button>
 
           <div className="relative my-6">
@@ -195,7 +181,7 @@ export function LoginScreen({ onLogin, onSignupClick }: LoginScreenProps) {
           </div>
 
           <div className="mt-8 text-center text-sm">
-            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>계정이 없으신가요? </span>
+            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>계정이 없으신가요? </span>
             <button 
               onClick={onSignupClick}
               className="text-indigo-500 hover:text-indigo-400 font-medium transition-colors"

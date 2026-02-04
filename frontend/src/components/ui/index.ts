@@ -60,6 +60,7 @@ export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './resizabl
 
 // Chart Components
 export { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, ChartStyle } from './chart';
+export { CandlestickChart, type CandleData } from './candlestick-chart';
 
 // Form
 export { useFormField, Form, FormItem, FormLabel, FormControl, FormDescription, FormMessage, FormField } from './form';

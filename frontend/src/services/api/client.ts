@@ -9,7 +9,7 @@ import type { ApiResponse } from "@/types";
  */
 
 // Mock 모드 플래그 - 백엔드 연결 시 false로 변경
-const USE_MOCK_API = true;
+const USE_MOCK_API = false;
 
 /**
  * 저장된 액세스 토큰 가져오기
@@ -57,6 +57,9 @@ function createHeaders(customHeaders?: HeadersInit): Headers {
 
 /**
  * API 응답 처리
+ * 
+ * 백엔드가 { success, data } 형식을 반환하면 그대로 사용하고,
+ * 배열이나 객체를 직접 반환하면 ApiResponse 형식으로 감싸서 반환합니다.
  */
 async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
   if (!response.ok) {
@@ -69,7 +72,18 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
   }
 
   const data = await response.json();
-  return data;
+  
+  // 백엔드가 ApiResponse 형식으로 응답하는 경우 (success 필드가 있음)
+  if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+    return data as ApiResponse<T>;
+  }
+  
+  // 백엔드가 데이터를 직접 반환하는 경우 (배열 또는 객체)
+  // ApiResponse 형식으로 감싸서 반환
+  return {
+    success: true,
+    data: data as T
+  };
 }
 
 /**

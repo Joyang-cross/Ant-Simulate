@@ -1,44 +1,29 @@
-// API 클라이언트 - Mock 모드에서는 사용하지 않음 (추후 연동 시 사용)
-import { apiClient as _apiClient } from "./client";
-import { API_ENDPOINTS as _API_ENDPOINTS } from "@/config/constants";
-import type { LoginRequest, LoginResponse, SignupRequest, User } from "@/types";
+import { apiClient } from "./client";
+import { API_ENDPOINTS } from "@/config/constants";
+import type { LoginRequest, LoginResponse, SignupRequest, SignupResponse, User } from "@/types";
 
 /**
- * 인증 관련 API 서비스
- * 
- * 📌 현재 상태: Mock 데이터 반환 (백엔드 연결 전)
+ * 인증 관련 API 서비스 (Backend 연동)
  */
-
-// Mock 사용자 데이터
-const MOCK_USER: User = {
-  id: "user-001",
-  email: "demo@ant-simulate.com",
-  name: "데모 사용자",
-  profileImage: undefined,
-  createdAt: "2025-01-01T00:00:00Z",
-  updatedAt: "2025-01-20T00:00:00Z",
-};
 
 /**
  * 로그인
  */
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
-  // === Mock 모드: 항상 성공 반환 ===
   console.log("[Auth] Login attempt:", credentials.email);
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.post<LoginResponse>(
-  //   API_ENDPOINTS.AUTH.LOGIN,
-  //   credentials
-  // );
-  // return response.data;
-
-  // Mock 응답
-  return {
-    user: MOCK_USER,
-    accessToken: "mock-access-token-" + Date.now(),
-    refreshToken: "mock-refresh-token-" + Date.now(),
-  };
+  const response = await apiClient.post<LoginResponse>(
+    API_ENDPOINTS.AUTH.LOGIN,
+    credentials
+  );
+  
+  // 로그인 성공 시 userId를 localStorage에 저장
+  if (response.data.userId) {
+    localStorage.setItem("ant_user_id", String(response.data.userId));
+    localStorage.setItem("ant_nickname", response.data.nickname);
+  }
+  
+  return response.data;
 }
 
 /**
@@ -46,62 +31,46 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
  */
 export async function logout(): Promise<void> {
   console.log("[Auth] Logout");
-  
-  // 실제 API 연결 시 아래 코드 사용
-  // await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-  
-  // 로컬 토큰 삭제는 호출하는 쪽에서 처리
+  localStorage.removeItem("ant_user_id");
+  localStorage.removeItem("ant_nickname");
 }
 
 /**
  * 회원가입
  */
-export async function signup(data: SignupRequest): Promise<LoginResponse> {
+export async function signup(data: SignupRequest): Promise<SignupResponse> {
   console.log("[Auth] Signup attempt:", data.email);
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.post<LoginResponse>(
-  //   API_ENDPOINTS.AUTH.SIGNUP,
-  //   data
-  // );
-  // return response.data;
+  const response = await apiClient.post<SignupResponse>(
+    API_ENDPOINTS.AUTH.SIGNUP,
+    data
+  );
+  return response.data;
+}
 
-  // Mock 응답
+/**
+ * 현재 사용자 정보 조회 (localStorage 기반)
+ */
+export function getCurrentUser(): User | null {
+  const userId = localStorage.getItem("ant_user_id");
+  const nickname = localStorage.getItem("ant_nickname");
+  
+  if (!userId) return null;
+  
   return {
-    user: { ...MOCK_USER, email: data.email, name: data.name },
-    accessToken: "mock-access-token-" + Date.now(),
-    refreshToken: "mock-refresh-token-" + Date.now(),
+    id: Number(userId),
+    email: "",
+    name: nickname || "",
+    nickname: nickname || "",
+    createdAt: new Date().toISOString()
   };
 }
 
 /**
- * 현재 사용자 정보 조회
- */
-export async function getCurrentUser(): Promise<User> {
-  console.log("[Auth] Get current user");
-  
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.get<User>(API_ENDPOINTS.AUTH.ME);
-  // return response.data;
-
-  // Mock 응답
-  return MOCK_USER;
-}
-
-/**
- * 토큰 갱신
+ * 토큰 갱신 (현재 미사용 - JWT 미구현)
  */
 export async function refreshToken(_token: string): Promise<{ accessToken: string }> {
   console.log("[Auth] Refresh token");
-  
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.post<{ accessToken: string }>(
-  //   API_ENDPOINTS.AUTH.REFRESH,
-  //   { refreshToken }
-  // );
-  // return response.data;
-
-  // Mock 응답
   return {
     accessToken: "mock-new-access-token-" + Date.now(),
   };

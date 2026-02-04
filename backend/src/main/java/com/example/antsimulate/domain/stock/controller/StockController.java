@@ -2,6 +2,7 @@ package com.example.antsimulate.domain.stock.controller;
 
 import com.example.antsimulate.domain.stock.dto.GetStockPriceDailyResponse;
 import com.example.antsimulate.domain.stock.dto.LikeStockItemsResponse;
+import com.example.antsimulate.domain.stock.entity.StockItems;
 import com.example.antsimulate.domain.stock.service.StockService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StockController {
     private final StockService stockService;
+
+    @GetMapping
+    public ResponseEntity<?> getStockItems(){
+        List<StockItems> response = stockService.getStockItems();
+        return ResponseEntity.ok(response);
+    }
 
     @GetMapping("/{stockItemId}")
     public ResponseEntity<?> getStockPriceDaily(@PathVariable Long stockItemId){

@@ -1,13 +1,8 @@
 import { useState, useEffect } from "react";
-import { LoginScreen } from "@/components/pages/LoginScreen";
-import { SignupScreen } from "@/components/pages/SignupScreen";
-import { TradingCenter } from "@/app/components/TradingCenter";
-import { Portfolio } from "@/app/components/Portfolio";
-import { BacktestingLab } from "@/app/components/BacktestingLab";
-import { MyPage } from "@/app/components/MyPage";
-import { MarketNews } from "@/app/components/MarketNews";
-import { Button } from "@/app/components/ui/button";
+import { LoginScreen, SignupScreen, TradingCenter, Portfolio, BacktestingLab, MyPage, MarketNews, StockDetailScreen } from "@/components";
+import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks";
+import type { StockItem } from "@/types";
 import { 
   TrendingUp, 
   LayoutDashboard, 
@@ -31,16 +26,30 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 
-type Screen = "login" | "signup" | "trading" | "portfolio" | "backtesting" | "mypage" | "news";
+type Screen = "login" | "signup" | "trading" | "portfolio" | "backtesting" | "mypage" | "news" | "stockDetail";
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("login");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [nickname, setNickname] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [nickname, setNickname] = useState<string>("");
+  const [selectedStockForDetail, setSelectedStockForDetail] = useState<StockItem | null>(null);
   const { isDark, toggleTheme } = useTheme();
+
+  // 로그인 상태 복구
+  useEffect(() => {
+    const savedUserId = localStorage.getItem("ant_user_id");
+    const savedNickname = localStorage.getItem("ant_nickname");
+    if (savedUserId) {
+      setUserId(Number(savedUserId));
+      setNickname(savedNickname || "");
+      setIsLoggedIn(true);
+      setCurrentScreen("trading");
+    }
+  }, []);
 
   // Apply theme class to document
   useEffect(() => {
@@ -48,39 +57,48 @@ export default function App() {
     document.documentElement.classList.add(isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  const handleLogin = (userNickname: string) => {
-    setNickname(userNickname);
+  const handleLogin = (loginUserId: number, loginNickname: string) => {
+    setUserId(loginUserId);
+    setNickname(loginNickname);
     setIsLoggedIn(true);
     setCurrentScreen("trading");
   };
 
-  const handleSignup = (userNickname: string) => {
-    setNickname(userNickname);
+  const handleSignupComplete = (signupUserId: number, signupNickname: string) => {
+    setUserId(signupUserId);
+    setNickname(signupNickname);
     setIsLoggedIn(true);
     setCurrentScreen("trading");
+  };
+
+  const handleBackToLogin = () => {
+    setCurrentScreen("login");
   };
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
+    localStorage.removeItem("ant_user_id");
+    localStorage.removeItem("ant_nickname");
+    setUserId(null);
     setNickname("");
+    setIsLoggedIn(false);
     setCurrentScreen("login");
+  };
+
+  const handleStockDetail = (stockItem: StockItem) => {
+    setSelectedStockForDetail(stockItem);
+    setCurrentScreen("stockDetail");
+  };
+
+  const handleBackFromStockDetail = () => {
+    setSelectedStockForDetail(null);
+    setCurrentScreen("trading");
   };
 
   if (!isLoggedIn) {
     if (currentScreen === "signup") {
-      return (
-        <SignupScreen 
-          onSignup={handleSignup} 
-          onBackToLogin={() => setCurrentScreen("login")} 
-        />
-      );
+      return <SignupScreen onSignupComplete={handleSignupComplete} onBackToLogin={handleBackToLogin} />;
     }
-    return (
-      <LoginScreen 
-        onLogin={handleLogin} 
-        onSignupClick={() => setCurrentScreen("signup")} 
-      />
-    );
+    return <LoginScreen onLogin={handleLogin} onSignupClick={() => setCurrentScreen("signup")} />;
   }
 
   const navItems = [
@@ -216,7 +234,7 @@ export default function App() {
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center">
                       <User className="w-4 h-4 text-white" />
                     </div>
-                    <span className={`hidden md:inline font-medium ${isDark ? '' : 'text-slate-700'}`}>{nickname}</span>
+                    <span className={`hidden md:inline font-medium ${isDark ? '' : 'text-slate-700'}`}>홍길동</span>
                     <ChevronDown className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -285,10 +303,26 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 overflow-auto relative z-10">
         <div className="animate-fade-in">
-          {currentScreen === "trading" && <TradingCenter />}
+          {currentScreen === "trading" && (
+            <TradingCenter 
+              onStockDetail={handleStockDetail} 
+              userId={userId || undefined} 
+            />
+          )}
+          {currentScreen === "stockDetail" && selectedStockForDetail && (
+            <StockDetailScreen 
+              stockItem={selectedStockForDetail} 
+              onBack={handleBackFromStockDetail}
+            />
+          )}
           {currentScreen === "portfolio" && <Portfolio />}
           {currentScreen === "backtesting" && <BacktestingLab />}
-          {currentScreen === "mypage" && <MyPage />}
+          {currentScreen === "mypage" && (
+            <MyPage 
+              userId={userId || undefined} 
+              nickname={nickname} 
+            />
+          )}
           {currentScreen === "news" && <MarketNews />}
         </div>
       </main>

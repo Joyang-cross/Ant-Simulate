@@ -3,18 +3,19 @@
 // ============================================
 
 // 화면 타입
-export type ScreenType = "login" | "trading" | "portfolio" | "backtesting" | "mypage" | "news";
+export type ScreenType = "login" | "signup" | "trading" | "portfolio" | "backtesting" | "mypage" | "news" | "stockDetail";
 
 // ============================================
-// 사용자 관련 타입
+// 사용자 관련 타입 (Backend 연동)
 // ============================================
 export interface User {
-  id: string;
+  id: number;
   email: string;
   name: string;
+  nickname: string;
   profileImage?: string;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface AuthState {
@@ -29,20 +30,40 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
+  userId: number;
+  nickname: string;
 }
 
 export interface SignupRequest {
   email: string;
   password: string;
   name: string;
+  nickname: string;
+}
+
+export interface SignupResponse {
+  userId: number;
+  email: string;
 }
 
 // ============================================
-// 주식/거래 관련 타입
+// 계좌 관련 타입 (Backend 연동)
 // ============================================
+export interface Account {
+  accountId: number;
+  startAsset: number;
+  totalAsset: number;
+}
+
+export interface UpdateStartAssetRequest {
+  startAsset: number;
+}
+
+// ============================================
+// 주식/거래 관련 타입 (Backend 연동)
+// ============================================
+
+// 프론트엔드용 주식 타입 (호환성 유지)
 export interface Stock {
   code: string;
   name: string;
@@ -56,8 +77,59 @@ export interface Stock {
   previousClose: number;
 }
 
+// 백엔드 StockItems 엔티티 (백엔드 필드명과 일치)
+export interface StockItem {
+  id: number;
+  stockSymbol: string;
+  stockName: string;
+  // 프론트엔드 호환용 alias (선택적)
+  symbol?: string;
+  name?: string;
+  stockType?: string;
+  stockCountry?: string;
+  stockAlias?: string;
+}
+
+// 백엔드 StockPriceDaily API 응답 (GetStockPriceDailyResponse)
+export interface StockPriceDaily {
+  stockPriceDailyId?: number;
+  stockName?: string;
+  tradeDate: string;
+  openPrice: number;
+  highPrice: number;
+  lowPrice: number;
+  closePrice: number;
+  volume: number;
+  // 프론트엔드 호환용 alias (선택적)
+  id?: number;
+  stockItemId?: number;
+  date?: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// 관심종목 토글 응답
+export interface LikeStockResponse {
+  status: "create" | "delete";
+}
+
+// 관심종목 아이템
+export interface LikedStockItem extends StockItem {
+  likeId: number;
+  likedAt: string;
+}
+
 export interface StockChartData {
   time: string;
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
   price: number;
   volume: number;
 }
@@ -127,8 +199,43 @@ export interface PortfolioHistory {
 }
 
 // ============================================
-// 백테스팅 관련 타입
+// 백테스팅 관련 타입 (Backend 연동)
 // ============================================
+
+// 백테스트 인터벌 타입
+export type BacktestInterval = "1m" | "5m" | "15m" | "30m" | "1h" | "1d";
+
+// 백테스트 전략 타입
+export type BacktestStrategyType = "aggressive" | "defensive";
+
+// 백테스트 주문 타입
+export type BacktestOrderType = "BATCH" | "DIVIDED";
+
+// 백테스트 요청 DTO (Backend와 일치)
+export interface BacktestRequest {
+  ticker: string;               // 종목 심볼
+  startDate: string;            // 시작일 (YYYY-MM-DD)
+  endDate: string;              // 종료일 (YYYY-MM-DD)
+  interval: BacktestInterval;   // 인터벌
+  initialCapital: number;       // 초기 자본 (최소 1000)
+  commissionRate: number;       // 수수료율
+  stopLossPct: number;          // 손절률
+  strategyType: BacktestStrategyType;  // 전략 타입
+  orderType: BacktestOrderType; // 주문 타입
+  divisionCount?: number;       // 분할 횟수 (DIVIDED일 경우 필수)
+}
+
+// 백테스트 응답 DTO (Backend와 일치)
+export interface BacktestResult {
+  totalReturnPct: number;       // 총 수익률 %
+  mddPct: number;               // 최대 낙폭 %
+  sharpeRatio: number;          // 샤프 지수
+  finalAssets: number;          // 최종 자산
+  totalTrades: number;          // 총 거래 횟수
+  winRate: number;              // 승률
+}
+
+// 레거시 호환성용
 export interface BacktestStrategy {
   id: string;
   name: string;
@@ -139,19 +246,6 @@ export interface BacktestStrategy {
   initialCapital: number;
   strategy: string;
   parameters: Record<string, number | string>;
-}
-
-export interface BacktestResult {
-  strategyId: string;
-  totalReturn: number;
-  totalReturnPercent: number;
-  maxDrawdown: number;
-  sharpeRatio: number;
-  winRate: number;
-  totalTrades: number;
-  profitFactor: number;
-  trades: TradeHistory[];
-  equityCurve: { date: string; value: number }[];
 }
 
 // ============================================

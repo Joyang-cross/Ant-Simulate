@@ -3,13 +3,16 @@
  * 
  * 사용 예시:
  * ```ts
- * import { authApi, stocksApi, portfolioApi, ordersApi } from '@/services/api';
+ * import { authApi, stocksApi, accountApi, backtestApi } from '@/services/api';
  * 
  * // 로그인
  * const result = await authApi.login({ email, password });
  * 
  * // 주식 목록 조회
- * const stocks = await stocksApi.getStocks();
+ * const stocks = await stocksApi.getStockItems();
+ * 
+ * // 계좌 조회
+ * const account = await accountApi.getAccount(userId);
  * ```
  */
 
@@ -21,6 +24,12 @@ export * as authApi from "./auth";
 
 // 주식 API
 export * as stocksApi from "./stocks";
+
+// 계좌 API
+export * as accountApi from "./account";
+
+// 백테스팅 API
+export * as backtestApi from "./backtest";
 
 // 포트폴리오 API
 export * as portfolioApi from "./portfolio";

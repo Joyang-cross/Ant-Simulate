@@ -1,146 +1,100 @@
-// API 클라이언트 - Mock 모드에서는 사용하지 않음 (추후 연동 시 사용)
-import { apiClient as _apiClient } from "./client";
-import { API_ENDPOINTS as _API_ENDPOINTS } from "@/config/constants";
-import type { Stock, StockChartData, OrderBook } from "@/types";
+import { apiClient } from "./client";
+import { API_ENDPOINTS } from "@/config/constants";
+import type { StockItem, StockPriceDaily, StockChartData, OrderBook, LikeStockResponse } from "@/types";
 
 /**
- * 주식 관련 API 서비스
- * 
- * 📌 현재 상태: Mock 데이터 반환 (백엔드 연결 전)
+ * 주식 관련 API 서비스 (Backend 연동)
  */
-
-// Mock 주식 데이터
-const MOCK_STOCKS: Stock[] = [
-  {
-    code: "005930",
-    name: "삼성전자",
-    currentPrice: 72500,
-    change: 1500,
-    changePercent: 2.11,
-    volume: 12500000,
-    high: 73000,
-    low: 71000,
-    open: 71500,
-    previousClose: 71000,
-  },
-  {
-    code: "000660",
-    name: "SK하이닉스",
-    currentPrice: 135000,
-    change: 3500,
-    changePercent: 2.66,
-    volume: 3200000,
-    high: 136000,
-    low: 131500,
-    open: 132000,
-    previousClose: 131500,
-  },
-  {
-    code: "373220",
-    name: "LG에너지솔루션",
-    currentPrice: 385000,
-    change: -8000,
-    changePercent: -2.04,
-    volume: 450000,
-    high: 395000,
-    low: 383000,
-    open: 393000,
-    previousClose: 393000,
-  },
-  {
-    code: "005380",
-    name: "현대차",
-    currentPrice: 242500,
-    change: 2500,
-    changePercent: 1.04,
-    volume: 890000,
-    high: 244000,
-    low: 239000,
-    open: 240000,
-    previousClose: 240000,
-  },
-  {
-    code: "035420",
-    name: "NAVER",
-    currentPrice: 215000,
-    change: 5000,
-    changePercent: 2.38,
-    volume: 1100000,
-    high: 216000,
-    low: 209000,
-    open: 210000,
-    previousClose: 210000,
-  },
-];
 
 /**
  * 주식 목록 조회
  */
-export async function getStocks(): Promise<Stock[]> {
-  console.log("[Stocks] Get stock list");
+export async function getStockItems(): Promise<StockItem[]> {
+  console.log("[Stocks] Get stock items list");
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.get<Stock[]>(API_ENDPOINTS.STOCKS.LIST);
-  // return response.data;
-
-  return MOCK_STOCKS;
+  const response = await apiClient.get<StockItem[]>(API_ENDPOINTS.STOCKS.LIST);
+  // 응답이 배열인지 확인하고 안전하게 반환
+  const data = response.data;
+  console.log("[Stocks] Raw API response:", data);
+  console.log("[Stocks] Response type:", typeof data, Array.isArray(data));
+  if (Array.isArray(data)) {
+    console.log("[Stocks] Received", data.length, "items");
+    if (data.length > 0) {
+      console.log("[Stocks] First item:", data[0]);
+    }
+    return data;
+  }
+  console.warn("[Stocks] API response is not an array:", data);
+  return [];
 }
 
 /**
  * 주식 상세 정보 조회
  */
-export async function getStockDetail(code: string): Promise<Stock> {
-  console.log("[Stocks] Get stock detail:", code);
+export async function getStockDetail(stockItemId: number): Promise<StockItem> {
+  console.log("[Stocks] Get stock detail:", stockItemId);
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.get<Stock>(API_ENDPOINTS.STOCKS.DETAIL(code));
-  // return response.data;
-
-  const stock = MOCK_STOCKS.find((s) => s.code === code);
-  if (!stock) {
-    throw new Error(`Stock not found: ${code}`);
-  }
-  return stock;
+  const response = await apiClient.get<StockItem>(API_ENDPOINTS.STOCKS.DETAIL(stockItemId));
+  return response.data;
 }
 
 /**
- * 주식 차트 데이터 조회
+ * 주식 일봉 차트 데이터 조회 (최대 20년치)
  */
-export async function getStockChart(
-  code: string,
-  interval: string = "1d"
-): Promise<StockChartData[]> {
-  console.log("[Stocks] Get stock chart:", code, interval);
+export async function getStockPriceDaily(stockItemId: number): Promise<StockPriceDaily[]> {
+  console.log("[Stocks] Get stock daily price:", stockItemId);
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.get<StockChartData[]>(
-  //   `${API_ENDPOINTS.STOCKS.CHART(code)}?interval=${interval}`
-  // );
-  // return response.data;
+  const response = await apiClient.get<StockPriceDaily[]>(API_ENDPOINTS.STOCKS.CHART(stockItemId));
+  // 응답이 배열인지 확인하고 안전하게 반환
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data;
+  }
+  console.warn("[Stocks] Chart API response is not an array:", data);
+  return [];
+}
 
-  // Mock 차트 데이터 생성
-  const basePrice = MOCK_STOCKS.find((s) => s.code === code)?.currentPrice || 50000;
-  return Array.from({ length: 30 }, (_, i) => ({
-    time: `2025-01-${String(i + 1).padStart(2, "0")}`,
-    price: basePrice + (Math.random() - 0.5) * basePrice * 0.1,
-    volume: Math.floor(Math.random() * 1000000) + 500000,
+/**
+ * 주식 차트 데이터를 프론트엔드 형식으로 변환
+ */
+export async function getStockChart(stockItemId: number): Promise<StockChartData[]> {
+  const priceData = await getStockPriceDaily(stockItemId);
+  
+  console.log("[Stocks] Raw price data:", priceData.slice(0, 3));
+  
+  return priceData.map(p => ({
+    // 백엔드 필드명 (tradeDate, openPrice 등) 또는 프론트엔드 필드명 (date, open 등) 지원
+    time: p.tradeDate || p.date || '',
+    date: p.tradeDate || p.date || '',
+    open: Number(p.openPrice ?? p.open ?? 0),
+    high: Number(p.highPrice ?? p.high ?? 0),
+    low: Number(p.lowPrice ?? p.low ?? 0),
+    close: Number(p.closePrice ?? p.close ?? 0),
+    price: Number(p.closePrice ?? p.close ?? 0),
+    volume: Number(p.volume ?? 0)
   }));
 }
 
 /**
- * 호가창 조회
+ * 관심종목 추가/삭제 토글
+ */
+export async function toggleLikeStock(userId: number, stockItemId: number): Promise<LikeStockResponse> {
+  console.log("[Stocks] Toggle like stock:", userId, stockItemId);
+  
+  const response = await apiClient.post<LikeStockResponse>(
+    API_ENDPOINTS.STOCKS.LIKE(userId, stockItemId)
+  );
+  return response.data;
+}
+
+/**
+ * 호가창 조회 (Mock - 실시간 WebSocket으로 받는 것이 정상)
  */
 export async function getOrderBook(code: string): Promise<OrderBook> {
   console.log("[Stocks] Get order book:", code);
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.get<OrderBook>(API_ENDPOINTS.STOCKS.ORDERBOOK(code));
-  // return response.data;
-
-  const stock = MOCK_STOCKS.find((s) => s.code === code);
-  const basePrice = stock?.currentPrice || 50000;
-
-  // Mock 호가창 데이터 생성
+  // Mock 호가창 데이터 (WebSocket 연결 전까지 사용)
+  const basePrice = 50000;
   return {
     asks: Array.from({ length: 10 }, (_, i) => ({
       price: basePrice + (i + 1) * 100,
@@ -158,18 +112,19 @@ export async function getOrderBook(code: string): Promise<OrderBook> {
 /**
  * 주식 검색
  */
-export async function searchStocks(query: string): Promise<Stock[]> {
+export async function searchStocks(query: string): Promise<StockItem[]> {
   console.log("[Stocks] Search stocks:", query);
   
-  // 실제 API 연결 시 아래 코드 사용
-  // const response = await apiClient.get<Stock[]>(
-  //   `${API_ENDPOINTS.STOCKS.SEARCH}?q=${encodeURIComponent(query)}`
-  // );
-  // return response.data;
-
-  return MOCK_STOCKS.filter(
-    (s) =>
-      s.name.toLowerCase().includes(query.toLowerCase()) ||
-      s.code.includes(query)
+  // 전체 목록에서 필터링
+  const allStocks = await getStockItems();
+  const lowerQuery = query.toLowerCase();
+  
+  return allStocks.filter(stock => 
+    stock.symbol.toLowerCase().includes(lowerQuery) ||
+    stock.name.toLowerCase().includes(lowerQuery) ||
+    (stock.stockAlias && stock.stockAlias.toLowerCase().includes(lowerQuery))
   );
 }
+
+// Legacy API 호환성 유지
+export const getStocks = getStockItems;

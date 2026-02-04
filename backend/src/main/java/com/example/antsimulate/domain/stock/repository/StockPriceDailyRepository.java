@@ -23,7 +23,7 @@ public interface StockPriceDailyRepository extends JpaRepository<StockPriceDaily
             ) 
             FROM StockPriceDaily spd
             INNER JOIN spd.stockItems si
-            WHERE spd.id = :stockId
+            WHERE spd.stockItems.id = :stockId
             ORDER BY spd.tradeDate
         """)
     List<GetStockPriceDailyResponse> findDailyPrices(@Param("stockId") Long stockId);

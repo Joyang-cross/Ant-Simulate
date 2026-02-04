@@ -33,7 +33,7 @@ export const AUTH = {
 } as const;
 
 /**
- * API 엔드포인트
+ * API 엔드포인트 (Backend 연동)
  */
 export const API_ENDPOINTS = {
   // 인증
@@ -45,13 +45,27 @@ export const API_ENDPOINTS = {
     ME: "/auth/me",
   },
 
-  // 주식
+  // 계좌
+  ACCOUNT: {
+    GET: (userId: number) => `/account/${userId}`,
+    UPDATE_START_ASSET: (accountId: number) => `/account/${accountId}/update-start-asset`,
+    RESET_ASSET: (accountId: number) => `/account/${accountId}/reset-asset`,
+  },
+
+  // 주식 (백엔드: /api/stock)
   STOCKS: {
-    LIST: "/stocks",
-    DETAIL: (code: string) => `/stocks/${code}`,
-    CHART: (code: string) => `/stocks/${code}/chart`,
-    ORDERBOOK: (code: string) => `/stocks/${code}/orderbook`,
-    SEARCH: "/stocks/search",
+    LIST: "/stock",
+    DETAIL: (id: number) => `/stock/${id}`,
+    CHART: (stockItemId: number) => `/stock/${stockItemId}`,
+    LIKE: (userId: number, stockItemId: number) => `/stock/${userId}/${stockItemId}/like`,
+    ORDERBOOK: (code: string) => `/stock/${code}/orderbook`,
+    SEARCH: "/stock/search",
+  },
+
+  // 실시간 구독
+  SUBSCRIPTION: {
+    SUBSCRIBE: (symbol: string) => `/subscription/${symbol}`,
+    UNSUBSCRIBE: (symbol: string) => `/subscription/${symbol}`,
   },
 
   // 거래
@@ -72,9 +86,7 @@ export const API_ENDPOINTS = {
 
   // 백테스팅
   BACKTEST: {
-    RUN: "/backtest/run",
-    STRATEGIES: "/backtest/strategies",
-    RESULTS: "/backtest/results",
+    RUN: "/backtest",
   },
 
   // 뉴스

@@ -1,18 +1,15 @@
 import { useState, useCallback } from "react";
-import { authApi, setAccessToken, removeAccessToken } from "@/services/api";
+import { authApi, removeAccessToken } from "@/services/api";
 import type { User, LoginRequest, SignupRequest } from "@/types";
-import { storage } from "@/lib/utils";
 import { AUTH } from "@/config/constants";
 
 /**
- * 인증 상태 관리 훅
- * 
- * 📌 현재 상태: Mock 모드 (백엔드 연결 전)
+ * 인증 상태 관리 훅 (Backend 연동)
  */
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(() => 
-    storage.get<User | null>(AUTH.USER_KEY, null)
-  );
+  const [user, setUser] = useState<User | null>(() => {
+    return authApi.getCurrentUser();
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,14 +25,20 @@ export function useAuth() {
     try {
       const response = await authApi.login(credentials);
       
-      setAccessToken(response.accessToken);
-      storage.set(AUTH.REFRESH_TOKEN_KEY, response.refreshToken);
-      storage.set(AUTH.USER_KEY, response.user);
+      // 로그인 성공 시 사용자 정보 설정
+      const loggedInUser: User = {
+        id: response.userId,
+        email: credentials.email,
+        name: response.nickname,
+        nickname: response.nickname,
+        createdAt: new Date().toISOString()
+      };
       
-      setUser(response.user);
+      setUser(loggedInUser);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "로그인에 실패했습니다.");
+      const errorMessage = err instanceof Error ? err.message : "로그인에 실패했습니다.";
+      setError(errorMessage);
       return false;
     } finally {
       setIsLoading(false);
@@ -64,21 +67,18 @@ export function useAuth() {
     setError(null);
 
     try {
-      const response = await authApi.signup(data);
+      await authApi.signup(data);
       
-      setAccessToken(response.accessToken);
-      storage.set(AUTH.REFRESH_TOKEN_KEY, response.refreshToken);
-      storage.set(AUTH.USER_KEY, response.user);
-      
-      setUser(response.user);
-      return true;
+      // 회원가입 성공 후 자동 로그인
+      return await login({ email: data.email, password: data.password });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "회원가입에 실패했습니다.");
+      const errorMessage = err instanceof Error ? err.message : "회원가입에 실패했습니다.";
+      setError(errorMessage);
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [login]);
 
   /**
    * 에러 초기화
