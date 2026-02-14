@@ -1,5 +1,7 @@
 package com.example.antsimulate.stockhistory.ingest.service;
 
+import com.example.antsimulate.global.exception.BusinessException;
+import com.example.antsimulate.global.exception.ErrorCode;
 import com.example.antsimulate.stockhistory.ingest.client.TwelveDataClient;
 import com.example.antsimulate.stockhistory.ingest.dto.TwelveTimeSeriesResponse;
 import jakarta.transaction.Transactional;
@@ -24,7 +26,7 @@ public class StockPriceDailyIngestService {
         TwelveTimeSeriesResponse response = client.fetchDailySeriesRaw(symbol, outputsize);
 
         if(response == null || !"ok".equalsIgnoreCase(response.status) || response.values == null){
-            throw new IllegalStateException("TwelveData response not ok");
+            throw new BusinessException(ErrorCode.EXTERNAL_DATA_RESPONSE_ERROR);
         }
 
         String sql = """

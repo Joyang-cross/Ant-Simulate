@@ -1,5 +1,7 @@
 package com.example.antsimulate.kiwoom.message;
 
+import com.example.antsimulate.global.exception.BusinessException;
+import com.example.antsimulate.global.exception.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +54,7 @@ public class KiwoomWsMessageFactory {
             return json;
         } catch (JsonProcessingException e){
             log.error("Failed to serialize Kiwoom WS message", e);
-            throw new IllegalStateException("Kiwoom WS message serialization failed");
+            throw new BusinessException(ErrorCode.KIWOOM_WS_SERIALIZATION_FAILED);
         }
     }
 }

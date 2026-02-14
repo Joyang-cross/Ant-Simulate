@@ -1,6 +1,6 @@
 package com.example.antsimulate.global.exception;
 
-import org.springframework.http.HttpStatus;
+import com.example.antsimulate.global.exception.dto.ErrorResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -8,23 +8,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(DuplicateEmailException.class)
-    public ResponseEntity<String> handleDuplicateEmail(DuplicateEmailException e){
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-    }
-
-    @ExceptionHandler(DuplicateNicknameException.class)
-    public ResponseEntity<String> handleDuplicateNickname(DuplicateNicknameException e){
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-    }
-
-    @ExceptionHandler(LoginFailedException.class)
-    public ResponseEntity<String> handleLoginFailed(LoginFailedException e){
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-    }
-
-    @ExceptionHandler(AccountNotFoundException.class)
-    public ResponseEntity<String> handleAccountNotFoung(AccountNotFoundException e){
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+    /**
+     * 비즈니스 예외 통합
+     */
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException e){
+        ErrorCode errorCode = e.getErrorCode();
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(ErrorResponse.of(errorCode));
     }
 }

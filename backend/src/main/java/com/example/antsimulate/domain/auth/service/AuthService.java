@@ -7,9 +7,8 @@ import com.example.antsimulate.domain.auth.dto.SignupRequest;
 import com.example.antsimulate.domain.auth.dto.SignupResponse;
 import com.example.antsimulate.domain.user.entity.User;
 import com.example.antsimulate.domain.user.repository.UserRepository;
-import com.example.antsimulate.global.exception.DuplicateEmailException;
-import com.example.antsimulate.global.exception.DuplicateNicknameException;
-import com.example.antsimulate.global.exception.LoginFailedException;
+import com.example.antsimulate.global.exception.BusinessException;
+import com.example.antsimulate.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,11 +27,11 @@ public class AuthService {
         String nickname = request.getNickname();
 
         if(userRepository.existsByEmail(email)){
-            throw new DuplicateEmailException();
+            throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
         }
 
         if(userRepository.existsByNickname(nickname)){
-            throw new DuplicateNicknameException();
+            throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
         }
 
         User user = User.builder().email(email).password(encodedPassword).name(name).nickname(nickname).build();
@@ -44,11 +43,11 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request){
-        User user = userRepository.findByEmail(request.getEmail()).
-                orElseThrow(LoginFailedException::new);
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
-            throw new LoginFailedException();
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
         return new LoginResponse(user.getName(), user.getNickname());

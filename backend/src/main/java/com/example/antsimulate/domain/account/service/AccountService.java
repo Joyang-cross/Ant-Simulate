@@ -5,7 +5,8 @@ import com.example.antsimulate.domain.account.entity.Account;
 import com.example.antsimulate.domain.account.repository.AccountRepository;
 import com.example.antsimulate.domain.user.entity.User;
 import com.example.antsimulate.domain.user.repository.UserRepository;
-import com.example.antsimulate.global.exception.AccountNotFoundException;
+import com.example.antsimulate.global.exception.BusinessException;
+import com.example.antsimulate.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,7 @@ public class AccountService {
      *  계좌 조회
      **/
     public GetAccountResponse getAccount(Long userId){
-        Account account = accountRepository.findById(userId).orElseThrow(AccountNotFoundException::new);
+        Account account = accountRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         return new GetAccountResponse(account.getId(), account.getStartAsset(), account.getTotalAsset());
     }
 
@@ -39,7 +40,7 @@ public class AccountService {
      *  시드머니 변경
      **/
     public void updateStartAsset(Long accountId, long startAsset){
-        Account account = accountRepository.findById(accountId).orElseThrow(AccountNotFoundException::new);
+        Account account = accountRepository.findById(accountId).orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         account.setStartAsset(startAsset);
         account.setTotalAsset(startAsset);
     }
@@ -48,7 +49,7 @@ public class AccountService {
      *  계좌 초기화
      **/
     public void resetAsset(Long accountId){
-        Account account = accountRepository.findById(accountId).orElseThrow(AccountNotFoundException::new);
+        Account account = accountRepository.findById(accountId).orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         account.setStartAsset(DEFAULT_START_ASSET);
         account.setTotalAsset(DEFAULT_START_ASSET);
     }

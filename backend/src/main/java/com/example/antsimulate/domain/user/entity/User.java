@@ -1,10 +1,7 @@
 package com.example.antsimulate.domain.user.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -15,6 +12,7 @@ import java.time.ZoneOffset;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
+@Setter
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
