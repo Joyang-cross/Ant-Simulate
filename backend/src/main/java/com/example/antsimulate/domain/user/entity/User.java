@@ -37,4 +37,13 @@ public class User {
     void onCreate(){
         this.createdAt = OffsetDateTime.now(ZoneOffset.UTC);
     }
+
+    public void updateProfile(String name, String nickname){
+        this.name = name;
+        this.nickname = nickname;
+    }
+
+    public void updatePassword(String password){
+        this.password = password;
+    }
 }

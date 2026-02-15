@@ -76,6 +76,21 @@ export async function getStockChart(stockItemId: number): Promise<StockChartData
 }
 
 /**
+ * 관심종목 목록 조회
+ */
+export async function getLikedStocks(userId: number): Promise<StockItem[]> {
+  console.log("[Stocks] Get liked stocks for user:", userId);
+  
+  const response = await apiClient.get<StockItem[]>(API_ENDPOINTS.STOCKS.LIKED(userId));
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return data;
+  }
+  console.warn("[Stocks] Liked stocks response is not an array:", data);
+  return [];
+}
+
+/**
  * 관심종목 추가/삭제 토글
  */
 export async function toggleLikeStock(userId: number, stockItemId: number): Promise<LikeStockResponse> {

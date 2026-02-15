@@ -50,6 +50,6 @@ public class AuthService {
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
-        return new LoginResponse(user.getName(), user.getNickname());
+        return new LoginResponse(user.getId(), user.getName(), user.getNickname());
     }
 }

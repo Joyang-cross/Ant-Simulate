@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   TrendingUp, 
   TrendingDown, 
-  Search, 
   Plus, 
   Minus, 
-  Star, 
+  Star,
   Zap,
   Loader2,
-  ExternalLink,
-  X
+  ExternalLink
 } from "lucide-react";
 import { CandlestickChart } from "@/components/ui/candlestick-chart";
 import { stocksApi } from "@/services/api";
@@ -31,27 +29,93 @@ const getStockName = (stock: StockItem): string => stock.stockName || stock.name
 interface TradingCenterProps {
   onStockDetail?: (stockItem: StockItem) => void;
   userId?: number;
+  selectedStockFromSearch?: StockItem | null;
+  onSelectedStockFromSearchHandled?: () => void;
 }
 
-export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
+export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, onSelectedStockFromSearchHandled }: TradingCenterProps) {
   const { isDark } = useTheme();
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [selectedStock, setSelectedStock] = useState<StockItem | null>(null);
   const [chartData, setChartData] = useState<StockChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isChartLoading, setIsChartLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [quantity, setQuantity] = useState("");
   const [likedStockIds, setLikedStockIds] = useState<Set<number>>(new Set());
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
+  const [likedStocks, setLikedStocks] = useState<StockItem[]>([]);
+  
+  const centerContentRef = useRef<HTMLDivElement>(null);
+  const rightContentRef = useRef<HTMLDivElement>(null);
+  const [baseHeight, setBaseHeight] = useState<number>(0);
 
-  // 주식 목록 로드
+  // Layout Height Synchronization
+  useEffect(() => {
+    const measureHeight = () => {
+      const getPaddedHeight = (el: HTMLDivElement | null) => {
+        if (!el) return 0;
+        const h = el.getBoundingClientRect().height;
+        const parent = el.parentElement;
+        if (parent) {
+            const style = window.getComputedStyle(parent);
+            const py = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+            return h + py;
+        }
+        return h;
+      };
+
+      const centerH = getPaddedHeight(centerContentRef.current);
+      const rightH = getPaddedHeight(rightContentRef.current);
+      
+      const maxH = Math.max(centerH, rightH);
+      if (maxH > 0) {
+        setBaseHeight(maxH);
+      }
+    };
+
+    const observer = new ResizeObserver(measureHeight);
+    
+    if (centerContentRef.current) observer.observe(centerContentRef.current);
+    if (rightContentRef.current) observer.observe(rightContentRef.current);
+
+    measureHeight();
+    // Periodic check for safety
+    const interval = setInterval(measureHeight, 1000);
+
+    return () => {
+      observer.disconnect();
+      clearInterval(interval);
+    };
+  }, [selectedStock, chartData, likedStocks]);
+
+  // 상단바 검색에서 종목 선택시 반영
+  useEffect(() => {
+    if (selectedStockFromSearch) {
+      setSelectedStock(selectedStockFromSearch);
+      onSelectedStockFromSearchHandled?.();
+    }
+  }, [selectedStockFromSearch, onSelectedStockFromSearchHandled]);
+
+  // 관심종목 목록 로드
+  useEffect(() => {
+    async function loadLikedStocks() {
+      if (!userId) return;
+      try {
+        const items = await stocksApi.getLikedStocks(userId);
+        setLikedStocks(items);
+        setLikedStockIds(new Set(items.map(item => item.id)));
+      } catch (err) {
+        console.error("관심종목 로드 실패:", err);
+      }
+    }
+    loadLikedStocks();
+  }, [userId]);
+
+  // 주식 목록 로드 (초기 선택용)
   useEffect(() => {
     async function loadStocks() {
       setIsLoading(true);
       try {
         const items = await stocksApi.getStockItems();
-        setStockItems(items);
         if (items.length > 0 && !selectedStock) {
           setSelectedStock(items[0]);
         }
@@ -98,6 +162,11 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
         }
         return newSet;
       });
+      if (response.status === "create") {
+        setLikedStocks(prev => [...prev, stockItem]);
+      } else {
+        setLikedStocks(prev => prev.filter(s => s.id !== stockItem.id));
+      }
     } catch (err) {
       console.error("관심종목 토글 실패:", err);
     }
@@ -162,18 +231,8 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
     return chartPeriod === "weekly" ? sorted.slice(-52) : sorted.slice(-24); // 주봉 52주, 월봉 24개월
   }, [chartData, chartPeriod]);
 
-  // 검색 필터링된 주식 목록
-  const filteredStocks = Array.isArray(stockItems) ? stockItems.filter(stock => {
-    const query = searchQuery.toLowerCase();
-    const symbol = stock.stockSymbol || stock.symbol || "";
-    const name = stock.stockName || stock.name || "";
-    const alias = stock.stockAlias || "";
-    return (
-      symbol.toLowerCase().includes(query) ||
-      name.toLowerCase().includes(query) ||
-      alias.toLowerCase().includes(query)
-    );
-  }).slice(0, 20) : []; // 최대 20개만 표시
+  // 관심종목 목록 (검색 필터 없이 전체 표시)
+  const filteredStocks = likedStocks;
 
   // 차트에서 통계 계산 (집계된 데이터 기준)
   const displayData = aggregateChartData;
@@ -223,40 +282,25 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
 
   return (
     <div className="p-4 lg:p-6">
-      <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr_360px] gap-4 lg:gap-6">
-        {/* Watchlist Section */}
-        <Card className="glass-card rounded-2xl p-4 xl:order-1 order-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`font-semibold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              <Star className="w-4 h-4 text-amber-400" />
-              종목 목록
-            </h3>
-            <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
-              {stockItems.length}개
-            </span>
-          </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr_360px] gap-4 lg:gap-6 items-stretch">
+        {/* Watchlist Section - 왼쪽: 기준 높이로 고정(스크롤) */}
+        <div 
+          className="xl:order-1 order-2"
+          style={{ height: baseHeight > 0 ? `${baseHeight}px` : 'auto' }}
+        >
+          <Card className="glass-card rounded-2xl p-4 flex flex-col h-full overflow-hidden">
+            {/* 관심종목 헤더 */}
+            <div className="flex items-center justify-between mb-3 px-1 shrink-0">
+              <h3 className={`font-bold flex items-center gap-2 text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <Star className="w-4.5 h-4.5 text-amber-400 fill-amber-400" />
+                관심종목
+              </h3>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+                {likedStocks.length}개
+              </span>
+            </div>
 
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <Input 
-              placeholder="종목 검색 (심볼/이름)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`pl-9 rounded-xl h-10 text-sm ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-slate-500' : 'bg-slate-100 border-slate-200 text-slate-900 placeholder:text-slate-500'}`}
-            />
-            {searchQuery && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
-
-          <div className="space-y-1 max-h-[500px] overflow-y-auto scrollbar-hide">
+            <div className="space-y-1 flex-1 min-h-0 overflow-y-auto scrollbar-themed">
             {filteredStocks.map((stock) => (
               <div 
                 key={stock.id}
@@ -300,16 +344,21 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
               </div>
             ))}
             {filteredStocks.length === 0 && (
-              <div className={`text-center py-8 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                검색 결과가 없습니다
+              <div className={`flex flex-col items-center justify-center h-full py-12 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <Star className="w-6 h-6 mb-2 opacity-50" />
+                <span className="text-sm">관심종목이 없습니다</span>
+                <span className={`text-xs mt-1 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>상단 검색에서 종목의 ☆를 눌러주세요</span>
               </div>
             )}
           </div>
-        </Card>
+          </Card>
+        </div>
 
-        {/* Chart Section */}
-        <Card className="glass-card rounded-2xl p-6 flex flex-col xl:order-2 order-1">
-          {selectedStock && (
+        {/* Chart Section - 가운데: 자동 높이 조절 */}
+        <div className="xl:order-2 order-1 h-full">
+          <Card className="glass-card rounded-2xl p-6 flex flex-col h-full">
+            <div ref={centerContentRef} className="flex flex-col w-full">
+              {selectedStock && (
             <>
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -320,6 +369,14 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
                     <span className={`text-sm px-2 py-0.5 rounded-lg ${isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-600'}`}>
                       {getStockSymbol(selectedStock)}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleToggleLike(selectedStock)}
+                      className={`w-8 h-8 ${likedStockIds.has(selectedStock.id) ? 'text-amber-400' : isDark ? 'text-slate-500' : 'text-slate-400'}`}
+                    >
+                      <Star className={`w-5 h-5 ${likedStockIds.has(selectedStock.id) ? 'fill-current' : ''}`} />
+                    </Button>
                   </div>
                   <div className="flex items-center gap-4 mt-2">
                     {isChartLoading ? (
@@ -408,12 +465,14 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
               </Button>
             </>
           )}
+          </div>
         </Card>
+        </div>
 
-        {/* Order Section */}
-        <div className="space-y-4 xl:order-3 order-3">
-          {/* Order Book */}
-          <Card className="glass-card rounded-2xl p-4">
+        {/* Order Section - 오른쪽: 자동 높이 조절 */}
+        <div className="xl:order-3 order-3 h-full">
+          <div ref={rightContentRef} className="space-y-4 flex flex-col h-full">
+            <Card className="glass-card rounded-2xl p-4 flex-1">
             <div className="flex items-center justify-between mb-4">
               <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>호가창</h3>
               <div className="flex items-center gap-1 text-xs text-slate-400">
@@ -676,6 +735,7 @@ export function TradingCenter({ onStockDetail, userId }: TradingCenterProps) {
               </TabsContent>
             </Tabs>
           </Card>
+          </div>
         </div>
       </div>
     </div>

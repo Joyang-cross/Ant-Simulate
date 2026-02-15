@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { LoginScreen, SignupScreen, TradingCenter, Portfolio, BacktestingLab, MyPage, MarketNews, StockDetailScreen } from "@/components";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useTheme } from "@/hooks";
 import type { StockItem } from "@/types";
+import { stocksApi } from "@/services/api";
 import { 
   TrendingUp, 
   LayoutDashboard, 
@@ -17,7 +19,8 @@ import {
   LogOut,
   Moon,
   Sun,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -38,6 +41,55 @@ export default function App() {
   const [nickname, setNickname] = useState<string>("");
   const [selectedStockForDetail, setSelectedStockForDetail] = useState<StockItem | null>(null);
   const { isDark, toggleTheme } = useTheme();
+  const [headerSearchQuery, setHeaderSearchQuery] = useState("");
+  const [headerSearchFocused, setHeaderSearchFocused] = useState(false);
+  const [allStockItems, setAllStockItems] = useState<StockItem[]>([]);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // 주식 목록 로드 (헤더 검색용)
+  useEffect(() => {
+    async function loadStocksForSearch() {
+      try {
+        const items = await stocksApi.getStockItems();
+        setAllStockItems(items);
+      } catch (err) {
+        console.error("검색용 주식 목록 로드 실패:", err);
+      }
+    }
+    loadStocksForSearch();
+  }, []);
+
+  // 검색 드롭다운 외부 클릭 감지
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setHeaderSearchFocused(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 헤더 검색 결과
+  const headerSearchResults = useMemo(() => {
+    if (!headerSearchQuery.trim()) return [];
+    const q = headerSearchQuery.toLowerCase();
+    return allStockItems.filter(stock => {
+      const symbol = stock.stockSymbol || stock.symbol || "";
+      const name = stock.stockName || stock.name || "";
+      const alias = stock.stockAlias || "";
+      return symbol.toLowerCase().includes(q) || name.toLowerCase().includes(q) || alias.toLowerCase().includes(q);
+    }).slice(0, 10);
+  }, [allStockItems, headerSearchQuery]);
+
+  const handleSearchSelect = useCallback((stock: StockItem) => {
+    setHeaderSearchQuery("");
+    setHeaderSearchFocused(false);
+    setCurrentScreen("trading");
+    setSelectedStockFromSearch(stock);
+  }, []);
+
+  const [selectedStockFromSearch, setSelectedStockFromSearch] = useState<StockItem | null>(null);
 
   // 로그인 상태 복구
   useEffect(() => {
@@ -170,14 +222,67 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Search Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`rounded-xl w-10 h-10 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
-              >
-                <Search className="w-5 h-5" />
-              </Button>
+              {/* Stock Search */}
+              <div ref={searchRef} className="relative hidden lg:block">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <Input
+                    placeholder="종목 검색 (심볼/이름)"
+                    value={headerSearchQuery}
+                    onChange={(e) => setHeaderSearchQuery(e.target.value)}
+                    onFocus={() => setHeaderSearchFocused(true)}
+                    className={`pl-9 pr-8 rounded-xl h-9 w-56 text-sm transition-all duration-200 focus:w-72 ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-slate-500' : 'bg-slate-100 border-slate-200 text-slate-900 placeholder:text-slate-500'}`}
+                  />
+                  {headerSearchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => { setHeaderSearchQuery(""); }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+                {/* Search Dropdown */}
+                {headerSearchFocused && headerSearchQuery.trim() && (
+                  <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-2xl z-[100] ${isDark ? 'bg-[#1a1a2e] border border-white/10' : 'bg-white border border-slate-200'}`}>
+                    {headerSearchResults.length > 0 ? (
+                      <div className="max-h-80 overflow-y-auto scrollbar-themed py-1">
+                        {headerSearchResults.map((stock) => (
+                          <div
+                            key={stock.id}
+                            onClick={() => handleSearchSelect(stock)}
+                            className={`flex items-center justify-between px-3 py-2.5 cursor-pointer transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                {stock.stockName || stock.name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                                  {stock.stockSymbol || stock.symbol}
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                  stock.stockCountry === 'US'
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : 'bg-emerald-500/20 text-emerald-400'
+                                }`}>
+                                  {stock.stockType}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={`px-4 py-6 text-center text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        검색 결과가 없습니다
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Notifications */}
               <div className="relative">
@@ -234,7 +339,6 @@ export default function App() {
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center">
                       <User className="w-4 h-4 text-white" />
                     </div>
-                    <span className={`hidden md:inline font-medium ${isDark ? '' : 'text-slate-700'}`}>홍길동</span>
                     <ChevronDown className="w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -306,7 +410,9 @@ export default function App() {
           {currentScreen === "trading" && (
             <TradingCenter 
               onStockDetail={handleStockDetail} 
-              userId={userId || undefined} 
+              userId={userId || undefined}
+              selectedStockFromSearch={selectedStockFromSearch}
+              onSelectedStockFromSearchHandled={() => setSelectedStockFromSearch(null)}
             />
           )}
           {currentScreen === "stockDetail" && selectedStockForDetail && (

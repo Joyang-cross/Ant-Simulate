@@ -36,3 +36,6 @@ export * as portfolioApi from "./portfolio";
 
 // 주문 API
 export * as ordersApi from "./orders";
+
+// 사용자 API
+export * as userApi from "./user";

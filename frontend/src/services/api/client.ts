@@ -71,6 +71,14 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
     );
   }
 
+  // 204 No Content 응답인 경우 body가 없으므로 JSON 파싱하지 않음
+  if (response.status === 204) {
+    return {
+      success: true,
+      data: undefined as T
+    };
+  }
+
   const data = await response.json();
   
   // 백엔드가 ApiResponse 형식으로 응답하는 경우 (success 필드가 있음)
@@ -170,13 +178,17 @@ export const apiClient = {
     }
 
     // === 실제 API 호출 (백엔드 연결 시 활성화) ===
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const url = `${API_BASE_URL}${endpoint}`;
+    console.log(`[API Client] PUT ${url}`, body);
+    
+    const response = await fetch(url, {
       method: "PUT",
       headers: createHeaders(options?.headers),
       body: body ? JSON.stringify(body) : undefined,
       signal: options?.signal,
     });
 
+    console.log(`[API Client] PUT ${url} - Status: ${response.status}`);
     return handleResponse<T>(response);
   },
 
@@ -204,10 +216,10 @@ export const apiClient = {
   /**
    * DELETE 요청
    */
-  async delete<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {
+  async delete<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<ApiResponse<T>> {
     // === Mock 모드 ===
     if (USE_MOCK_API) {
-      console.log(`[Mock API] DELETE ${endpoint}`);
+      console.log(`[Mock API] DELETE ${endpoint}`, body);
       return { success: true, data: {} as T };
     }
 
@@ -215,6 +227,7 @@ export const apiClient = {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "DELETE",
       headers: createHeaders(options?.headers),
+      body: body ? JSON.stringify(body) : undefined,
       signal: options?.signal,
     });
 

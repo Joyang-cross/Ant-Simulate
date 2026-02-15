@@ -58,6 +58,7 @@ export const API_ENDPOINTS = {
     DETAIL: (id: number) => `/stock/${id}`,
     CHART: (stockItemId: number) => `/stock/${stockItemId}`,
     LIKE: (userId: number, stockItemId: number) => `/stock/${userId}/${stockItemId}/like`,
+    LIKED: (userId: number) => `/stock/${userId}/liked`,
     ORDERBOOK: (code: string) => `/stock/${code}/orderbook`,
     SEARCH: "/stock/search",
   },
@@ -99,8 +100,9 @@ export const API_ENDPOINTS = {
 
   // 사용자
   USER: {
-    PROFILE: "/user/profile",
-    UPDATE: "/user/profile",
+    GET: (userId: number) => `/user/${userId}`,
+    UPDATE: (userId: number) => `/user/${userId}`,
+    DELETE: (userId: number) => `/user/${userId}`,
     NOTIFICATIONS: "/user/notifications",
     SETTINGS: "/user/settings",
   },

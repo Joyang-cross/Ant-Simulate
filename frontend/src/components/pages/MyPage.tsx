@@ -5,9 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Shield, DollarSign, RefreshCw, Award, TrendingUp, Target, Calendar, Settings, Bell, CreditCard, History, Loader2, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { accountApi } from "@/services/api";
+import { accountApi, userApi } from "@/services/api";
 import type { Account } from "@/types";
 import { useTheme } from "@/hooks";
+
+interface UserInfo {
+  email: string;
+  name: string;
+  nickname: string;
+}
 
 interface MyPageProps {
   userId?: number;
@@ -18,14 +24,50 @@ export function MyPage({ userId, nickname }: MyPageProps) {
   const { isDark } = useTheme();
   const [account, setAccount] = useState<Account | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUserLoading, setIsUserLoading] = useState(true);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [profileName, setProfileName] = useState("");
+  const [profileNickname, setProfileNickname] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
   const [newStartAsset, setNewStartAsset] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [isProfileUpdating, setIsProfileUpdating] = useState(false);
+  const [profileUpdateSuccess, setProfileUpdateSuccess] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // 사용자 정보 로드
+  useEffect(() => {
+    async function loadUserInfo() {
+      if (!userId) {
+        setIsUserLoading(false);
+        return;
+      }
+      setIsUserLoading(true);
+      try {
+        const data = await userApi.getUser(userId);
+        setUserInfo(data);
+        setProfileName(data.name || "");
+        setProfileNickname(data.nickname || "");
+        setProfileEmail(data.email || "");
+      } catch (err) {
+        console.error("Failed to load user info:", err);
+      } finally {
+        setIsUserLoading(false);
+      }
+    }
+    loadUserInfo();
+  }, [userId]);
 
   // 계좌 정보 로드
   useEffect(() => {
     async function loadAccount() {
-      if (!userId) return;
+      if (!userId) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       try {
         const accountData = await accountApi.getAccount(userId);
@@ -73,6 +115,61 @@ export function MyPage({ userId, nickname }: MyPageProps) {
     }
   };
 
+  // 프로필 업데이트
+  const handleUpdateProfile = async () => {
+    console.log("[MyPage] Update profile:", { userId, profileName, profileNickname });
+    if (!userId || !profileName || !profileNickname) {
+      alert("이름과 닉네임을 입력해주세요.");
+      return;
+    }
+    setIsProfileUpdating(true);
+    try {
+      await userApi.updateUser(userId, profileName, profileNickname);
+      if (userInfo) {
+        setUserInfo({ ...userInfo, name: profileName, nickname: profileNickname });
+      }
+      // localStorage 업데이트
+      localStorage.setItem("ant_nickname", profileNickname);
+      setProfileUpdateSuccess(true);
+      setTimeout(() => setProfileUpdateSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      const errorMsg = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
+      alert(`프로필 업데이트에 실패했습니다: ${errorMsg}`);
+    } finally {
+      setIsProfileUpdating(false);
+    }
+  };
+
+  // 계정 탈퇴
+  const handleDeleteAccount = async () => {
+    if (!userId || !deletePassword) {
+      alert("비밀번호를 입력해주세요.");
+      return;
+    }
+
+    if (!confirm("정말 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await userApi.deleteUser(userId, deletePassword);
+      alert("계정이 성공적으로 탈퇴되었습니다.");
+      // 로그아웃 처리
+      localStorage.removeItem("ant_user_id");
+      localStorage.removeItem("ant_nickname");
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to delete account:", err);
+      alert("계정 탈퇴에 실패했습니다. 비밀번호를 확인해주세요.");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setDeletePassword("");
+    }
+  };
+
   const profitRate = account ? ((account.totalAsset - account.startAsset) / account.startAsset * 100) : 0;
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto">
@@ -86,7 +183,7 @@ export function MyPage({ userId, nickname }: MyPageProps) {
           </div>
         </div>
         <div>
-          <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{nickname || '사용자'}</h2>
+          <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{userInfo?.nickname || nickname || '사용자'}</h2>
           <p className={isDark ? 'text-slate-400' : 'text-slate-600'}>ID: {userId}</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">프리미엄</span>
@@ -122,19 +219,26 @@ export function MyPage({ userId, nickname }: MyPageProps) {
               <User className="w-5 h-5 text-indigo-400" />
               <h3 className="text-white font-semibold">프로필 정보</h3>
             </div>
+            {isUserLoading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+              </div>
+            ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-slate-300 text-sm">이름</Label>
                   <Input 
-                    defaultValue="홍길동"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
                     className="bg-white/5 border-white/10 text-white rounded-xl h-11"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-slate-300 text-sm">닉네임</Label>
                   <Input 
-                    defaultValue="개미투자자"
+                    value={profileNickname}
+                    onChange={(e) => setProfileNickname(e.target.value)}
                     className="bg-white/5 border-white/10 text-white rounded-xl h-11"
                   />
                 </div>
@@ -143,7 +247,7 @@ export function MyPage({ userId, nickname }: MyPageProps) {
                 <Label className="text-slate-300 text-sm">이메일</Label>
                 <Input 
                   type="email"
-                  defaultValue="user@example.com"
+                  value={profileEmail}
                   disabled
                   className="bg-white/5 border-white/10 text-slate-500 rounded-xl h-11"
                 />
@@ -156,10 +260,20 @@ export function MyPage({ userId, nickname }: MyPageProps) {
                   className="bg-white/5 border-white/10 text-white rounded-xl h-11"
                 />
               </div>
-              <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl h-11">
-                프로필 업데이트
+              <Button 
+                onClick={handleUpdateProfile}
+                disabled={isProfileUpdating}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl h-11"
+              >
+                {isProfileUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : profileUpdateSuccess ? (
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                ) : null}
+                {profileUpdateSuccess ? '업데이트 완료!' : '프로필 업데이트'}
               </Button>
             </div>
+            )}
           </Card>
 
           {/* Notification Settings */}
@@ -456,6 +570,75 @@ export function MyPage({ userId, nickname }: MyPageProps) {
                   </Button>
                 </div>
               ))}
+            </div>
+          </Card>
+
+          {/* Account Deletion */}
+          <Card className="glass-card rounded-2xl p-6 border-rose-500/20">
+            <div className="flex items-center gap-2 mb-5">
+              <Shield className="w-5 h-5 text-rose-400" />
+              <h3 className="text-white font-semibold">계정 탈퇴</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl">
+                <p className="text-rose-300 text-sm mb-2 font-medium">⚠️ 주의사항</p>
+                <ul className="text-rose-300/80 text-xs space-y-1 list-disc list-inside">
+                  <li>계정 탈퇴 시 모든 데이터가 영구적으로 삭제됩니다.</li>
+                  <li>포트폴리오, 거래 내역, 계좌 정보가 모두 삭제됩니다.</li>
+                  <li>탈퇴 후에는 복구가 불가능합니다.</li>
+                </ul>
+              </div>
+              
+              {showDeleteDialog ? (
+                <div className="space-y-3 animate-fade-in">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300 text-sm">비밀번호 확인</Label>
+                    <Input 
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="비밀번호를 입력하세요"
+                      className="bg-white/5 border-white/10 text-white rounded-xl h-11"
+                      disabled={isDeleting}
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={handleDeleteAccount}
+                      disabled={isDeleting || !deletePassword}
+                      className="flex-1 bg-rose-500 hover:bg-rose-600 text-white rounded-xl h-11"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          탈퇴 처리 중...
+                        </>
+                      ) : (
+                        "탈퇴 확인"
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setShowDeleteDialog(false);
+                        setDeletePassword("");
+                      }}
+                      disabled={isDeleting}
+                      variant="outline"
+                      className="flex-1 bg-white/5 border-white/10 text-white hover:bg-white/10 rounded-xl h-11"
+                    >
+                      취소
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button 
+                  onClick={() => setShowDeleteDialog(true)}
+                  variant="outline"
+                  className="w-full bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 rounded-xl h-11"
+                >
+                  계정 탈퇴하기
+                </Button>
+              )}
             </div>
           </Card>
         </TabsContent>

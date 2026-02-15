@@ -34,4 +34,10 @@ public class StockController {
         LikeStockItemsResponse response = stockService.createOrDeleteLikeStockItems(userId, stockItemId);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/{userId}/liked")
+    public ResponseEntity<?> getLikedStockItems(@PathVariable Long userId){
+        List<StockItems> response = stockService.getLikedStockItems(userId);
+        return ResponseEntity.ok(response);
+    }
 }

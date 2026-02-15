@@ -11,6 +11,7 @@ import com.example.antsimulate.domain.user.entity.User;
 import com.example.antsimulate.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -39,6 +40,7 @@ public class StockService {
     /**
      *  관심종목 추가 및 삭제
      **/
+    @Transactional
     public LikeStockItemsResponse createOrDeleteLikeStockItems(Long userId, Long stockItemId){
         User user = userRepository.getReferenceById(userId);
         StockItems stockItems = stockItemsRepository.getReferenceById(stockItemId);
@@ -56,5 +58,15 @@ public class StockService {
         }
 
         return new LikeStockItemsResponse("delete");
+    }
+
+    /**
+     *  관심종목 목록 조회
+     **/
+    public List<StockItems> getLikedStockItems(Long userId){
+        return likeStockItemsRepository.findByUserId(userId)
+                .stream()
+                .map(LikeStockItems::getStockItems)
+                .toList();
     }
 }
