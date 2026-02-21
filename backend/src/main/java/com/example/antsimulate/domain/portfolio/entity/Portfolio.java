@@ -1,4 +1,4 @@
-package com.example.antsimulate.domain.portfilio.entity;
+package com.example.antsimulate.domain.portfolio.entity;
 
 import com.example.antsimulate.domain.account.entity.Account;
 import com.example.antsimulate.domain.stock.entity.StockItems;

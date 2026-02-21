@@ -5,8 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Shield, DollarSign, RefreshCw, Award, TrendingUp, Target, Calendar, Settings, Bell, CreditCard, History, Loader2, CheckCircle2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { accountApi, userApi } from "@/services/api";
-import type { Account } from "@/types";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { accountApi, userApi, transactionApi } from "@/services/api";
+import type { Account, Transaction } from "@/types";
 import { useTheme } from "@/hooks";
 import { useCurrency } from "@/hooks/useCurrency";
 
@@ -23,7 +29,7 @@ interface MyPageProps {
 
 export function MyPage({ userId, nickname }: MyPageProps) {
   const { isDark } = useTheme();
-  const { formatPrice, currency } = useCurrency();
+  const { formatPrice } = useCurrency();
   const [account, setAccount] = useState<Account | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUserLoading, setIsUserLoading] = useState(true);
@@ -39,6 +45,9 @@ export function MyPage({ userId, nickname }: MyPageProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isTransactionLoading, setIsTransactionLoading] = useState(false);
+  const [isTransactionSheetOpen, setIsTransactionSheetOpen] = useState(false);
 
   // 사용자 정보 로드
   useEffect(() => {
@@ -171,6 +180,24 @@ export function MyPage({ userId, nickname }: MyPageProps) {
       setDeletePassword("");
     }
   };
+
+  // 거래내역 로드
+  useEffect(() => {
+    async function loadTransactions() {
+      if (!userId) return;
+      setIsTransactionLoading(true);
+      try {
+        const data = await transactionApi.getTransactionList(userId);
+        // 최신순 정렬
+        setTransactions(data.sort((a: Transaction, b: Transaction) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      } catch (err) {
+        console.error("거래내역 로드 실패:", err);
+      } finally {
+        setIsTransactionLoading(false);
+      }
+    }
+    loadTransactions();
+  }, [userId]);
 
   const profitRate = account ? ((account.totalAsset - account.startAsset) / account.startAsset * 100) : 0;
   return (
@@ -397,37 +424,51 @@ export function MyPage({ userId, nickname }: MyPageProps) {
                 <History className="w-5 h-5 text-purple-400" />
                 <h3 className="text-white font-semibold">최근 거래 내역</h3>
               </div>
-              <Button variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsTransactionSheetOpen(true)}
+                className="text-indigo-400 hover:text-indigo-300"
+              >
                 전체 보기
               </Button>
             </div>
-            <div className="space-y-2">
-              {[
-                { type: "buy", stock: "삼성전자", quantity: 10, price: 50000, time: "오늘 14:30" },
-                { type: "sell", stock: "SK하이닉스", quantity: 5, price: 115000, time: "어제 10:15" },
-                { type: "buy", stock: "NAVER", quantity: 3, price: 195000, time: "3일 전" },
-              ].map((tx, idx) => (
-                <div key={idx} className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      tx.type === 'buy' ? 'bg-emerald-500/20' : 'bg-rose-500/20'
-                    }`}>
-                      <TrendingUp className={`w-5 h-5 ${tx.type === 'buy' ? 'text-emerald-400' : 'text-rose-400 rotate-180'}`} />
+            {isTransactionLoading ? (
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-sm">거래 내역이 없습니다.</div>
+            ) : (
+              <div className="space-y-2">
+                {transactions.slice(0, 5).map((tx, idx) => {
+                  const isBuy = tx.transactionType === 'BUY';
+                  const totalAmount = tx.price * tx.quantity;
+                  const date = new Date(tx.createdAt);
+                  const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                  const timeStr = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div key={idx} className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isBuy ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`}>
+                          <TrendingUp className={`w-5 h-5 ${isBuy ? 'text-emerald-400' : 'text-rose-400 rotate-180'}`} />
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{tx.stockName}</p>
+                          <p className="text-slate-500 text-sm">{dateStr} {timeStr}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-medium ${isBuy ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isBuy ? '매수' : '매도'} {tx.quantity}주
+                        </p>
+                        <p className="text-slate-400 text-sm">₩{totalAmount.toLocaleString()}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-white font-medium">{tx.stock}</p>
-                      <p className="text-slate-500 text-sm">{tx.time}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-medium ${tx.type === 'buy' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {tx.type === 'buy' ? '매수' : '매도'} {tx.quantity}주
-                    </p>
-                    <p className="text-slate-400 text-sm">{formatPrice(tx.price * tx.quantity, 'KRW')}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </Card>
         </TabsContent>
 
@@ -645,6 +686,60 @@ export function MyPage({ userId, nickname }: MyPageProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 거래내역 전체보기 Sheet */}
+      <Sheet open={isTransactionSheetOpen} onOpenChange={setIsTransactionSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl bg-slate-900 border-white/10 flex flex-col p-0">
+          <SheetHeader className="px-6 py-5 border-b border-white/10 shrink-0">
+            <SheetTitle className="text-white font-bold text-lg flex items-center gap-2">
+              <History className="w-5 h-5 text-purple-400" />
+              전체 거래 내역
+            </SheetTitle>
+            <p className="text-slate-400 text-sm mt-1">총 {transactions.length}건의 거래 내역</p>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+            {isTransactionLoading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+              </div>
+            ) : transactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-2 text-slate-500">
+                <History className="w-8 h-8 opacity-40" />
+                <p className="text-sm">거래 내역이 없습니다.</p>
+              </div>
+            ) : (
+              transactions.map((tx, idx) => {
+                const isBuy = tx.transactionType === 'BUY';
+                const totalAmount = tx.price * tx.quantity;
+                const date = new Date(tx.createdAt);
+                const dateStr = date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+                const timeStr = date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={idx} className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/8 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isBuy ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`}>
+                        <TrendingUp className={`w-5 h-5 ${isBuy ? 'text-emerald-400' : 'text-rose-400 rotate-180'}`} />
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{tx.stockName}</p>
+                        <p className="text-slate-500 text-xs">{tx.stockSymbol} · {dateStr} {timeStr}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className={`font-semibold ${isBuy ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isBuy ? '매수' : '매도'} {tx.quantity}주
+                      </p>
+                      <p className="text-slate-400 text-sm">₩{totalAmount.toLocaleString()}</p>
+                      <p className="text-slate-600 text-xs">주당 ₩{tx.price.toLocaleString()}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

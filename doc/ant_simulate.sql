@@ -302,3 +302,23 @@ ALTER TABLE transactions
   ADD COLUMN exchange_rate numeric(18,6) NULL;
 
 COMMENT ON COLUMN transactions.exchange_rate IS '거래 시점 적용 환율(스냅샷, base→quote)';
+
+
+/* 
+ * 
+ * 
+ * ==================================================================================
+   	02/21 수정
+   ================================================================================== 
+ *
+ *
+ *
+ */
+
+
+/* =========================================
+   transactions type 컬럼 수정
+   ========================================= */
+	ALTER TABLE transactions
+  ALTER COLUMN type TYPE varchar(20)
+  USING type::text;

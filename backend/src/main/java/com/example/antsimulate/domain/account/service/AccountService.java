@@ -9,6 +9,7 @@ import com.example.antsimulate.global.exception.BusinessException;
 import com.example.antsimulate.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +40,7 @@ public class AccountService {
     /**
      *  시드머니 변경
      **/
+    @Transactional
     public void updateStartAsset(Long accountId, long startAsset){
         Account account = accountRepository.findById(accountId).orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         account.setStartAsset(startAsset);
@@ -48,6 +50,7 @@ public class AccountService {
     /**
      *  계좌 초기화
      **/
+    @Transactional
     public void resetAsset(Long accountId){
         Account account = accountRepository.findById(accountId).orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         account.setStartAsset(DEFAULT_START_ASSET);

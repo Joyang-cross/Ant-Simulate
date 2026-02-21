@@ -60,6 +60,23 @@ export interface UpdateStartAssetRequest {
 }
 
 // ============================================
+// 거래 내역 타입 (Backend 연동)
+// ============================================
+export interface Transaction {
+  stockSymbol: string;
+  stockName: string;
+  transactionType: 'BUY' | 'SELL';
+  price: number;        // 원화 기준 주당 가격
+  quantity: number;
+  createdAt: string;    // ISO 날짜 문자열
+}
+
+export interface CreateTransactionRequest {
+  transactionType: 'BUY' | 'SELL';
+  quantity: number;
+}
+
+// ============================================
 // 주식/거래 관련 타입 (Backend 연동)
 // ============================================
 

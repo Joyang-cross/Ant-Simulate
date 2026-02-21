@@ -42,3 +42,6 @@ export * as userApi from "./user";
 
 // 환율 API
 export * as exchangeApi from "./exchange";
+
+// 거래(체결) API
+export * as transactionApi from "./transaction";

@@ -27,7 +27,7 @@ public class Transactions {
     @JoinColumn(nullable = false, name = "account_id")
     private Account account;
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(nullable = false, name = "stock_item_id")
     private StockItems stockItems;
 

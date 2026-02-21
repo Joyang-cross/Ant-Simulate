@@ -15,8 +15,8 @@ import {
   ExternalLink
 } from "lucide-react";
 import { CandlestickChart } from "@/components/ui/candlestick-chart";
-import { stocksApi } from "@/services/api";
-import type { StockItem, StockChartData } from "@/types";
+import { stocksApi, accountApi, transactionApi } from "@/services/api";
+import type { StockItem, StockChartData, Account } from "@/types";
 import { useTheme } from "@/hooks";
 import { useCurrency } from "@/hooks/useCurrency";
 
@@ -36,7 +36,7 @@ interface TradingCenterProps {
 
 export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, onSelectedStockFromSearchHandled }: TradingCenterProps) {
   const { isDark } = useTheme();
-  const { formatPrice, convertPrice, currency } = useCurrency();
+  const { formatPrice, convertPrice, currency, exchangeRate } = useCurrency();
   const [selectedStock, setSelectedStock] = useState<StockItem | null>(null);
   const [chartData, setChartData] = useState<StockChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +45,9 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
   const [likedStockIds, setLikedStockIds] = useState<Set<number>>(new Set());
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("daily");
   const [likedStocks, setLikedStocks] = useState<StockItem[]>([]);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [isOrdering, setIsOrdering] = useState(false);
+  const [orderMessage, setOrderMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   const centerContentRef = useRef<HTMLDivElement>(null);
   const rightContentRef = useRef<HTMLDivElement>(null);
@@ -134,6 +137,20 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
       }
     }
     loadLikedStocks();
+  }, [userId]);
+
+  // 계좌 정보 로드
+  useEffect(() => {
+    async function loadAccount() {
+      if (!userId) return;
+      try {
+        const data = await accountApi.getAccount(userId);
+        setAccount(data);
+      } catch (err) {
+        console.error("계좌 정보 로드 실패:", err);
+      }
+    }
+    loadAccount();
   }, [userId]);
 
   // 주식 목록 로드 (초기 선택용)
@@ -305,20 +322,66 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
 
   const isPositive = chartStats.changePercent >= 0;
 
-  // Mock 호가창 데이터 (WebSocket 연결 전)
-  // chartStats.currentPrice는 이미 변환된 가격임.
-  // 따라서 여기서 계산되는 호가들도 변환된 가격 기준이 됨.
-  const mockOrderBook = {
-    asks: [
-      { price: chartStats.currentPrice * 1.004, quantity: 150, total: 0 },
-      { price: chartStats.currentPrice * 1.002, quantity: 230, total: 0 },
-      { price: chartStats.currentPrice * 1.001, quantity: 340, total: 0 },
-    ].map(ask => ({ ...ask, total: ask.price * ask.quantity })),
-    bids: [
-      { price: chartStats.currentPrice * 0.999, quantity: 280, total: 0 },
-      { price: chartStats.currentPrice * 0.998, quantity: 190, total: 0 },
-      { price: chartStats.currentPrice * 0.996, quantity: 120, total: 0 },
-    ].map(bid => ({ ...bid, total: bid.price * bid.quantity })),
+  // 매수/매도 주문창에서 항상 원화로 표시하기 위한 가격 계산
+  // aggregateChartData는 원본 통화(USD/KRW) 기준이므로, 여기서 원화로 환산
+  const tradingSourceCurrency = selectedStock?.stockCountry === 'US' ? 'USD' : 'KRW';
+  const rawCurrentPrice = aggregateChartData.length >= 1 ? (aggregateChartData[aggregateChartData.length - 1]?.close || 0) : 0;
+  const currentPriceInKRW = tradingSourceCurrency === 'USD'
+    ? Math.round(rawCurrentPrice * exchangeRate)
+    : rawCurrentPrice;
+
+  // 예수금 (실제 계좌 totalAsset 기준)
+  const availableBalance = account?.totalAsset ?? 0;
+
+  // 매수 처리
+  const handleBuy = async () => {
+    if (!userId || !selectedStock || !quantity || parseInt(quantity) <= 0) return;
+    const qty = parseInt(quantity);
+    if (currentPriceInKRW * qty > availableBalance) {
+      setOrderMessage({ type: 'error', text: '예수금이 부족합니다.' });
+      setTimeout(() => setOrderMessage(null), 3000);
+      return;
+    }
+    setIsOrdering(true);
+    try {
+      await transactionApi.createTransaction(userId, selectedStock.id, {
+        transactionType: 'BUY',
+        quantity: qty,
+      });
+      const updated = await accountApi.getAccount(userId);
+      setAccount(updated);
+      setQuantity("");
+      setOrderMessage({ type: 'success', text: `매수 체결: ${getStockName(selectedStock)} ${qty}주` });
+    } catch (err) {
+      console.error('매수 실패:', err);
+      setOrderMessage({ type: 'error', text: '매수 주문에 실패했습니다.' });
+    } finally {
+      setIsOrdering(false);
+      setTimeout(() => setOrderMessage(null), 3000);
+    }
+  };
+
+  // 매도 처리
+  const handleSell = async () => {
+    if (!userId || !selectedStock || !quantity || parseInt(quantity) <= 0) return;
+    const qty = parseInt(quantity);
+    setIsOrdering(true);
+    try {
+      await transactionApi.createTransaction(userId, selectedStock.id, {
+        transactionType: 'SELL',
+        quantity: qty,
+      });
+      const updated = await accountApi.getAccount(userId);
+      setAccount(updated);
+      setQuantity("");
+      setOrderMessage({ type: 'success', text: `매도 체결: ${getStockName(selectedStock)} ${qty}주` });
+    } catch (err) {
+      console.error('매도 실패:', err);
+      setOrderMessage({ type: 'error', text: '매도 주문에 실패했습니다.' });
+    } finally {
+      setIsOrdering(false);
+      setTimeout(() => setOrderMessage(null), 3000);
+    }
   };
 
   if (isLoading) {
@@ -535,65 +598,16 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
               <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>호가창</h3>
               <div className="flex items-center gap-1 text-xs text-slate-400">
                 <Zap className="w-3 h-3 text-amber-400" />
-                실시간
+                임시
               </div>
-            </div>
-            
-            <div className="space-y-1 mb-3">
-              {mockOrderBook.asks.slice().reverse().map((ask, idx) => (
-                <div key={idx} className="grid grid-cols-3 text-sm py-1.5 px-2 rounded-lg relative overflow-hidden">
-                  <div 
-                    className="absolute right-0 top-0 bottom-0 bg-indigo-500/10" 
-                    style={{ width: `${(ask.quantity / 500) * 100}%` }}
-                  />
-                  <span className="text-indigo-400 font-medium relative z-10 w-full text-left truncate">
-                    {formatPrice(ask.price, currency)}
-                  </span>
-                  <span className={`text-right relative z-10 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{ask.quantity}</span>
-                  <span className="text-slate-500 text-right text-xs relative z-10">
-                    {(ask.total / 1000000).toFixed(1)}M
-                  </span>
-                </div>
-              ))}
             </div>
 
-            <div className={`py-3 mb-3 border-y text-center ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {formatPrice(chartStats.currentPrice, currency)}
-              </div>
-              <div className="text-slate-400 text-xs mt-0.5">현재가</div>
-            </div>
-
-            <div className="space-y-1">
-              {mockOrderBook.bids.map((bid, idx) => (
-                <div key={idx} className="grid grid-cols-3 text-sm py-1.5 px-2 rounded-lg relative overflow-hidden">
-                  <div 
-                    className="absolute right-0 top-0 bottom-0 bg-emerald-500/10" 
-                    style={{ width: `${(bid.quantity / 500) * 100}%` }}
-                  />
-                  <span className="text-emerald-400 font-medium relative z-10 w-full text-left truncate">
-                    {formatPrice(bid.price, currency)}
-                  </span>
-                  <span className={`text-right relative z-10 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{bid.quantity}</span>
-                  <span className="text-slate-500 text-right text-xs relative z-10">
-                    {(bid.total / 1000000).toFixed(1)}M
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-400">매도 잔량</span>
-                <span className="text-indigo-400 font-medium">720주</span>
-              </div>
-              <div className={`w-full rounded-full h-2 overflow-hidden ${isDark ? 'bg-white/5' : 'bg-slate-200'}`}>
-                <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400" style={{ width: '55%' }} />
-              </div>
-              <div className="flex justify-between text-sm mt-2">
-                <span className="text-slate-400">매수 잔량</span>
-                <span className="text-emerald-400 font-medium">590주</span>
-              </div>
+            <div className={`flex flex-col items-center justify-center py-10 gap-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
+              <div className="text-3xl">📋</div>
+              <p className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>임시 호가창</p>
+              <p className={`text-xs text-center leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                실시간 호가 데이터 연동 기능은<br />현재 개발 예정 중입니다.
+              </p>
             </div>
           </Card>
 
@@ -620,13 +634,13 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-400">예수금</span>
                     <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      {formatPrice(10000000, 'KRW')}
+                      ₩{availableBalance.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">주문 가능</span>
                     <span className="text-emerald-400 font-medium">
-                      {chartStats.currentPrice > 0 ? Math.floor(convertPrice(10000000, 'KRW') / chartStats.currentPrice) : 0}주
+                      {currentPriceInKRW > 0 ? Math.floor(availableBalance / currentPriceInKRW) : 0}주
                     </span>
                   </div>
                 </div>
@@ -649,11 +663,11 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
                 </div>
 
                 <div className="space-y-2">
-                  <Label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>주문가격</Label>
+                  <Label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>주문가격 (원화)</Label>
                   <div className="flex gap-2">
                     <Input 
                       type="number" 
-                      value={chartStats.currentPrice || ""}
+                      value={currentPriceInKRW || ""}
                       readOnly
                       className={`rounded-xl ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-100 border-slate-200 text-slate-900'}`}
                     />
@@ -683,7 +697,7 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
                         size="sm" 
                         onClick={() => {
                           const percent = parseInt(pct) / 100;
-                          const maxQty = chartStats.currentPrice > 0 ? Math.floor((10000000 * percent) / chartStats.currentPrice) : 0;
+                          const maxQty = currentPriceInKRW > 0 ? Math.floor((availableBalance * percent) / currentPriceInKRW) : 0;
                           setQuantity(String(maxQty));
                         }}
                         className={`text-xs rounded-lg ${isDark ? 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}`}
@@ -698,19 +712,30 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-400">주문금액</span>
                     <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      {(chartStats.currentPrice * (parseInt(quantity) || 0)).toLocaleString()}원
+                      ₩{(currentPriceInKRW * (parseInt(quantity) || 0)).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">수수료</span>
                     <span className="text-slate-500">
-                      {Math.round(chartStats.currentPrice * (parseInt(quantity) || 0) * 0.00015).toLocaleString()}원
+                      ₩{Math.round(currentPriceInKRW * (parseInt(quantity) || 0) * 0.00015).toLocaleString()}
                     </span>
                   </div>
                 </div>
 
-                <Button className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl h-12 font-semibold shadow-lg shadow-emerald-500/25">
-                  매수 주문
+                {orderMessage && (
+                  <div className={`p-3 rounded-xl text-sm text-center font-medium ${
+                    orderMessage.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                  }`}>
+                    {orderMessage.text}
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleBuy}
+                  disabled={isOrdering || !quantity || parseInt(quantity) <= 0}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl h-12 font-semibold shadow-lg shadow-emerald-500/25 disabled:opacity-50">
+                  {isOrdering ? '체결 중...' : '매수 주문'}
                 </Button>
               </TabsContent>
 
@@ -744,11 +769,11 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
                 </div>
 
                 <div className="space-y-2">
-                  <Label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>주문가격</Label>
+                  <Label className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>주문가격 (원화)</Label>
                   <div className="flex gap-2">
                     <Input 
                       type="number" 
-                      value={chartStats.currentPrice || ""}
+                      value={currentPriceInKRW || ""}
                       readOnly
                       className={`rounded-xl ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-slate-100 border-slate-200 text-slate-900'}`}
                     />
@@ -785,16 +810,19 @@ export function TradingCenter({ onStockDetail, userId, selectedStockFromSearch, 
                 <div className={`p-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-slate-100'}`}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-400">주문금액</span>
-                    <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>0원</span>
+                    <span className={`font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>₩0</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">수수료</span>
-                    <span className="text-slate-500">0원</span>
+                    <span className="text-slate-500">₩0</span>
                   </div>
                 </div>
 
-                <Button className="w-full bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-xl h-12 font-semibold shadow-lg shadow-rose-500/25">
-                  매도 주문
+                <Button
+                  onClick={handleSell}
+                  disabled={isOrdering || !quantity || parseInt(quantity) <= 0}
+                  className="w-full bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-xl h-12 font-semibold shadow-lg shadow-rose-500/25 disabled:opacity-50">
+                  {isOrdering ? '체결 중...' : '매도 주문'}
                 </Button>
               </TabsContent>
             </Tabs>

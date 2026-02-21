@@ -2,11 +2,11 @@ package com.example.antsimulate.domain.transaction.service;
 
 import com.example.antsimulate.domain.account.entity.Account;
 import com.example.antsimulate.domain.account.repository.AccountRepository;
-import com.example.antsimulate.domain.account.service.AccountService;
 import com.example.antsimulate.domain.exchange.service.ExchangeRateDailyService;
 import com.example.antsimulate.domain.stock.entity.StockItems;
 import com.example.antsimulate.domain.stock.entity.StockPriceDaily;
 import com.example.antsimulate.domain.stock.service.StockService;
+import com.example.antsimulate.domain.transaction.dto.GetTransactionResponse;
 import com.example.antsimulate.domain.transaction.entity.TransactionType;
 import com.example.antsimulate.domain.transaction.entity.Transactions;
 import com.example.antsimulate.domain.transaction.repository.TransactionsRepository;
@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +31,19 @@ public class TransactionService {
     /**
      * 거래내역 조회
      */
-    public void getTransactionList(Long userId){
-
+    public List<GetTransactionResponse> getTransactionList(Long userId){
+        Account account = accountRepository.findByUserId(userId).orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
+        List<Transactions> transactionsList = transactionsRepository.findByAccount(account);
+        return transactionsList.stream()
+                .map(t -> new GetTransactionResponse(
+                        t.getStockItems().getStockSymbol(),
+                        t.getStockItems().getStockName(),
+                        t.getTransactionType().name(),
+                        t.getPrice(),
+                        t.getQuantity(),
+                        t.getCreatedAt()
+                ))
+                .toList();
     }
 
     /**
@@ -52,7 +64,7 @@ public class TransactionService {
         BigDecimal closePrice = stockPriceDaily.getClosePrice();
 
         if("US".equals(stockItems.getStockCountry())){
-            rate = exchangeRateDailyService.getLastExchangeRate("US", "KR").getRate();
+            rate = exchangeRateDailyService.getLastExchangeRate("USD", "KRW").getRate();
             price = rate.multiply(closePrice)
                     .setScale(0, RoundingMode.HALF_UP)
                     .intValueExact();

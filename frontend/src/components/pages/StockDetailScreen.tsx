@@ -144,25 +144,27 @@ export function StockDetailScreen({
     const now = new Date();
     let startDate: Date;
     
-    switch (timeRange) {
-      case "1M": startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); break;
-      case "3M": startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break;
-      case "6M": startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()); break;
-      case "1Y": startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); break;
-      case "3Y": startDate = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()); break;
-      case "5Y": startDate = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()); break;
-      case "10Y": startDate = new Date(now.getFullYear() - 10, now.getMonth(), now.getDate()); break;
-      case "20Y": startDate = new Date(now.getFullYear() - 20, now.getMonth(), now.getDate()); break;
-      case "MAX": default: return periodData;
+    // 기간 필터링
+    let filtered = periodData;
+    if (timeRange !== "MAX") {
+      switch (timeRange) {
+        case "1M": startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); break;
+        case "3M": startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break;
+        case "6M": startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()); break;
+        case "1Y": startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); break;
+        case "3Y": startDate = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate()); break;
+        case "5Y": startDate = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()); break;
+        case "10Y": startDate = new Date(now.getFullYear() - 10, now.getMonth(), now.getDate()); break;
+        case "20Y": startDate = new Date(now.getFullYear() - 20, now.getMonth(), now.getDate()); break;
+      }
+      filtered = periodData.filter(d => new Date(d.date) >= startDate);
     }
 
-    
-    // 환율 변환 적용
+    // 환율 변환 적용 (MAX 포함 항상 수행)
     const sourceCurrency = stockItem.stockCountry === 'US' ? 'USD' : 'KRW';
-    
-    // 만약 현재 currency와 원본 화폐가 다르면 값 변환
+
     if (sourceCurrency !== currency) {
-      return periodData.filter(d => new Date(d.date) >= startDate).map(item => ({
+      return filtered.map(item => ({
         ...item,
         open: convertPrice(item.open, sourceCurrency),
         high: convertPrice(item.high, sourceCurrency),
@@ -171,8 +173,8 @@ export function StockDetailScreen({
         // volume은 변환 안함
       }));
     }
-    
-    return periodData.filter(d => new Date(d.date) >= startDate);
+
+    return filtered;
   }, [periodData, timeRange, stockItem, currency, convertPrice]);
 
 

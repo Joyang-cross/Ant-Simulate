@@ -77,6 +77,12 @@ export const API_ENDPOINTS = {
     HISTORY: "/orders/history",
   },
 
+  // 실제 거래 (백엔드 연동)
+  TRANSACTION: {
+    LIST: (userId: number) => `/transaction/${userId}`,
+    CREATE: (userId: number, stockItemId: number) => `/transaction/${userId}/${stockItemId}`,
+  },
+
   // 포트폴리오
   PORTFOLIO: {
     SUMMARY: "/portfolio/summary",
